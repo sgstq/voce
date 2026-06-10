@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SwiftLint
+        run: which swiftlint || brew install swiftlint
+
+      - name: Lint (strict)
+        run: swiftlint lint --strict --reporter github-actions-logging
+
+  test:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: which xcodegen || brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Build and test
+        run: |
+          xcodebuild \
+            -project Voce.xcodeproj \
+            -scheme Voce \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            test

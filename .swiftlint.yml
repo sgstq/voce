@@ -1,0 +1,32 @@
+excluded:
+  - build
+  - dist
+  - Voce.xcodeproj
+
+disabled_rules:
+  # Project style: trailing commas in multiline collections.
+  - trailing_comma
+  # False-positives on SwiftUI Text concatenation: Text defines + but no +=.
+  - shorthand_operator
+  # Lossy UTF-8 decoding is intentional where used (error bodies, test JSON).
+  - optional_data_string_conversion
+
+line_length:
+  warning: 170
+  error: 230
+  ignores_comments: true
+
+identifier_name:
+  min_length: 2 # down/up event pairs, x/y geometry
+
+cyclomatic_complexity:
+  warning: 15
+
+type_body_length:
+  warning: 320
+
+function_body_length:
+  warning: 80
+
+function_parameter_count:
+  warning: 6

@@ -96,7 +96,7 @@ struct TextInserter {
 
         while ContinuousClock.now < deadline {
             let flags = CGEventSource.flagsState(.combinedSessionState)
-            if flags.intersection(modifiers).isEmpty {
+            if flags.isDisjoint(with: modifiers) {
                 let waited = start.duration(to: .now)
                 if waited > .milliseconds(30) {
                     Self.log.info("keystrokes: waited \(waited.description, privacy: .public) for modifier release")

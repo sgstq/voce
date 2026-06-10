@@ -75,7 +75,13 @@ enum FocusContextCapture {
             context.textAfterCursor = window.after
         }
 
-        log.info("capture: app=\(context.appName, privacy: .public) title.len=\(context.windowTitle.count) before.len=\(context.textBeforeCursor.count) after.len=\(context.textAfterCursor.count) selected.len=\(context.selectedText.count)")
+        log.info(
+            """
+            capture: app=\(context.appName, privacy: .public) title.len=\(context.windowTitle.count) \
+            before.len=\(context.textBeforeCursor.count) after.len=\(context.textAfterCursor.count) \
+            selected.len=\(context.selectedText.count)
+            """
+        )
         return context
     }
 

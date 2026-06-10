@@ -1,0 +1,120 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump level'
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+# Serialize release runs so two pushes to main can't compute the same
+# version or clobber each other's release. Never kill an in-flight release.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+# Git tags are the single source of truth for the version: every push to
+# main bumps from the latest v* tag (patch by default; minor/major via
+# "Run workflow") and publishes a signed DMG as a GitHub Release.
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.VERSION }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute version
+        id: version
+        shell: bash
+        run: |
+          git fetch --tags --force >/dev/null 2>&1 || true
+
+          LATEST=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | sed 's/^v//' | sort -V | tail -n1)
+          [ -z "$LATEST" ] && LATEST="0.0.0"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$LATEST"
+
+          bump() {
+            case "$1" in
+              major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+              minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+              *)     PATCH=$((PATCH + 1)) ;;
+            esac
+          }
+
+          BUMP="${{ github.event.inputs.bump }}"
+          BUMP="${BUMP:-patch}"
+          bump "$BUMP"
+          VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          # On re-runs after the tag exists, keep bumping the SAME level.
+          while git rev-parse "v${VERSION}" >/dev/null 2>&1; do
+            bump "$BUMP"
+            VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          done
+
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: $VERSION (latest tag was v$LATEST)"
+
+  release:
+    runs-on: macos-26
+    needs: prepare
+    permissions:
+      contents: write
+    env:
+      KEYCHAIN_PASSWORD: voce-ci-keychain
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # package.sh derives the build number from the commit count
+
+      - name: Check signing secrets
+        env:
+          CERT_P12: ${{ secrets.MACOS_SIGNING_CERT_P12 }}
+        run: |
+          if [ -z "$CERT_P12" ]; then
+            echo "::error::Secret MACOS_SIGNING_CERT_P12 is not set. Export the signing certificate as a base64 .p12 and add it (plus MACOS_SIGNING_CERT_PASSWORD) under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      - name: Import signing certificate
+        env:
+          CERT_P12: ${{ secrets.MACOS_SIGNING_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_SIGNING_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN=$RUNNER_TEMP/voce-build.keychain-db
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          echo "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$CERT_PASSWORD" -A -f pkcs12
+          rm "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain
+          security find-identity -v -p codesigning "$KEYCHAIN"
+
+      - name: Install XcodeGen
+        run: which xcodegen || brew install xcodegen
+
+      - name: Build signed DMG
+        run: |
+          export DEVELOPER_DIR="$(xcode-select -p)"
+          scripts/package.sh "${{ needs.prepare.outputs.version }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.prepare.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: v${{ needs.prepare.outputs.version }}
+          files: dist/*.dmg
+          generate_release_notes: true
+          draft: false
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

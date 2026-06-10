@@ -76,7 +76,9 @@ struct Refiner {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.httpBody = try Self.requestBody(provider: provider, model: model, prompt: prompt)
 
-        Self.log.notice("refining chars=\(transcript.count) provider=\(provider.rawValue, privacy: .public) model=\(model, privacy: .public) context=\(context.hasSurroundingText)")
+        Self.log.notice(
+            "refining chars=\(transcript.count) provider=\(provider.rawValue, privacy: .public) model=\(model, privacy: .public)"
+        )
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
@@ -189,6 +191,7 @@ struct Refiner {
         // framing makes models normalize mixed-language dictations into one
         // language (translating the minority segments). Never imply there is
         // exactly one language.
+        // swiftlint:disable line_length
         let languageRule: String
         if let name = DictationLanguages.englishName(for: language) {
             languageRule = """
@@ -200,6 +203,7 @@ struct Refiner {
               Example — input: "so basically мы хотим сделать это правильно okay" → output: "So basically, мы хотим сделать это правильно. Okay." (the Russian stays Russian, the English stays English.)
             """
         }
+        // swiftlint:enable line_length
         return buildPromptBody(transcript: transcript, context: context, languageRule: languageRule)
     }
 
@@ -265,6 +269,8 @@ struct Refiner {
         return patterns.contains { lower.contains($0) }
     }
 
+    // The prompt is prose; its lines stay natural.
+    // swiftlint:disable line_length
     static let promptTemplate = """
     You are a text post-processor for a voice transcription tool. You receive raw speech-to-text output and return cleaned text.
 
@@ -291,4 +297,5 @@ struct Refiner {
     Raw transcript:
     {transcript}
     """
+    // swiftlint:enable line_length
 }

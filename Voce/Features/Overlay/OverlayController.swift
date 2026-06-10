@@ -224,9 +224,9 @@ struct OverlayView: View {
         }
 
         // Three soft typing dots pulsing in sequence after the last word.
-        let t = now.timeIntervalSinceReferenceDate
+        let time = now.timeIntervalSinceReferenceDate
         for index in 0..<3 {
-            let phase = (t * 0.9 - Double(index) * 0.18)
+            let phase = (time * 0.9 - Double(index) * 0.18)
                 .truncatingRemainder(dividingBy: 1.0)
             let pulse = max(0.0, sin(max(0, phase) * .pi))
             combined = combined
@@ -275,12 +275,12 @@ private struct PulseDot: View {
         ZStack {
             if pulsing {
                 TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
-                    let t = timeline.date.timeIntervalSinceReferenceDate
+                    let progress = timeline.date.timeIntervalSinceReferenceDate
                         .truncatingRemainder(dividingBy: 1.4) / 1.4
                     Circle()
-                        .stroke(color.opacity((1 - t) * 0.55), lineWidth: 1.5)
+                        .stroke(color.opacity((1 - progress) * 0.55), lineWidth: 1.5)
                         .frame(width: 9, height: 9)
-                        .scaleEffect(1 + t * 1.9)
+                        .scaleEffect(1 + progress * 1.9)
                 }
             }
             Circle()
