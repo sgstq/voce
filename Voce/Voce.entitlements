@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Hardened-runtime apps need this to be ALLOWED to ask for the mic;
+	     without it the system denies immediately, with no prompt. -->
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<!-- No App Sandbox: the global hotkey (CGEventTap) and Accessibility
+	     text insertion require an unsandboxed process. -->
+</dict>
+</plist>

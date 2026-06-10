@@ -1,0 +1,173 @@
+/* ============================================================
+   CADENCE — design tokens
+   Warm paper/ink base · one AI accent · warm "live" recording hue.
+   Themeable via [data-theme] · density via [data-density] ·
+   accent + radius overridable from :root (Tweaks panel).
+   ============================================================ */
+
+:root {
+  /* type */
+  --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* accent (overridable by Tweaks) */
+  --accent:        oklch(0.55 0.17 285);
+  --accent-press:  oklch(0.48 0.17 285);
+  --accent-wash:   oklch(0.55 0.17 285 / 0.12);
+  --accent-ink:    #ffffff;
+  --live:          oklch(0.63 0.20 27);
+  --live-wash:     oklch(0.63 0.20 27 / 0.14);
+
+  /* density (overridable) */
+  --u: 4px;            /* base unit */
+  --radius: 18px;      /* recorder/card roundness (Tweaks) */
+  --pad-card: 22px;
+  --gap: 14px;
+  --row-h: 44px;
+}
+
+[data-density="compact"] { --pad-card: 15px; --gap: 9px;  --row-h: 38px; }
+[data-density="comfy"]   { --pad-card: 30px; --gap: 20px; --row-h: 52px; }
+
+/* ---------- LIGHT (default) ---------- */
+:root, [data-theme="light"] {
+  --paper:      oklch(0.985 0.004 83);
+  --paper-2:    oklch(0.965 0.005 83);
+  --surface:    #ffffff;
+  --surface-2:  oklch(0.975 0.004 83);
+  --ink:        oklch(0.24 0.012 65);
+  --ink-soft:   oklch(0.50 0.012 65);
+  --ink-faint:  oklch(0.66 0.010 65);
+  --line:       oklch(0.91 0.006 75);
+  --line-soft:  oklch(0.945 0.005 75);
+  --shadow-1:   0 1px 2px rgba(38,32,24,.06), 0 2px 6px rgba(38,32,24,.05);
+  --shadow-2:   0 4px 12px rgba(38,32,24,.08), 0 14px 38px rgba(38,32,24,.10);
+  --shadow-pop: 0 8px 24px rgba(38,32,24,.16), 0 24px 60px rgba(38,32,24,.18);
+  --scrim:      oklch(0.24 0.012 65 / 0.42);
+}
+
+/* ---------- DARK ---------- */
+[data-theme="dark"] {
+  --paper:      oklch(0.205 0.008 70);
+  --paper-2:    oklch(0.235 0.008 70);
+  --surface:    oklch(0.255 0.009 70);
+  --surface-2:  oklch(0.29 0.009 70);
+  --ink:        oklch(0.955 0.004 83);
+  --ink-soft:   oklch(0.74 0.008 78);
+  --ink-faint:  oklch(0.58 0.008 75);
+  --line:       oklch(0.34 0.009 72);
+  --line-soft:  oklch(0.30 0.009 72);
+  --accent:        oklch(0.66 0.16 285);
+  --accent-press:  oklch(0.58 0.16 285);
+  --accent-wash:   oklch(0.66 0.16 285 / 0.20);
+  --live:          oklch(0.68 0.19 27);
+  --live-wash:     oklch(0.68 0.19 27 / 0.20);
+  --shadow-1:   0 1px 2px rgba(0,0,0,.4);
+  --shadow-2:   0 6px 20px rgba(0,0,0,.45);
+  --shadow-pop: 0 10px 30px rgba(0,0,0,.55), 0 30px 70px rgba(0,0,0,.5);
+  --scrim:      rgba(0,0,0,0.5);
+}
+
+/* ---------- primitives ---------- */
+* { box-sizing: border-box; }
+
+.cad {
+  font-family: var(--font-sans);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.mono { font-family: var(--font-mono); font-feature-settings: "tnum" 1; }
+.kbd {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 600;
+  padding: 2px 6px; border-radius: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  box-shadow: 0 1px 0 var(--line);
+}
+
+/* the artboard fills with app paper */
+.cad-frame {
+  width: 100%; height: 100%;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  position: relative;
+  overflow: hidden;
+}
+
+/* generic pill button */
+.pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 32px; padding: 0 14px;
+  border-radius: 999px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink);
+  font: 600 13px/1 var(--font-sans);
+  cursor: pointer; white-space: nowrap;
+  transition: background .14s, border-color .14s, transform .1s;
+}
+.pill:hover { background: var(--surface-2); }
+.pill:active { transform: translateY(1px); }
+.pill.is-accent { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.pill.is-accent:hover { background: var(--accent-press); }
+
+/* segmented mode chips */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 30px; padding: 0 12px; border-radius: 999px;
+  font: 600 12.5px/1 var(--font-sans);
+  color: var(--ink-soft); background: transparent;
+  border: 1px solid transparent; cursor: pointer; white-space: nowrap;
+  transition: all .14s;
+}
+.chip:hover { background: var(--surface-2); color: var(--ink); }
+.chip.is-on { background: var(--accent-wash); color: var(--accent); border-color: transparent; }
+[data-theme="dark"] .chip.is-on { color: var(--ink); }
+
+/* card */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--shadow-1);
+}
+
+/* ---------- motion ---------- */
+@keyframes cadCaret { 0%,49%{opacity:1} 50%,100%{opacity:0} }
+@keyframes cadBar   { 0%,100%{ transform: scaleY(0.28) } 50%{ transform: scaleY(1) } }
+@keyframes cadPulse { 0%{ box-shadow: 0 0 0 0 var(--live-wash) } 70%{ box-shadow: 0 0 0 12px transparent } 100%{ box-shadow: 0 0 0 0 transparent } }
+@keyframes cadSpin  { to { transform: rotate(360deg) } }
+@keyframes cadShimmer { 0%{ background-position: -160% 0 } 100%{ background-position: 260% 0 } }
+@keyframes cadRise  { from { opacity:0; transform: translateY(6px) } to { opacity:1; transform:none } }
+@keyframes cadStrike { from { width: 0 } to { width: 100% } }
+@keyframes cadOrb   { 0%,100%{ transform: scale(1) } 50%{ transform: scale(1.06) } }
+@keyframes wordIn   { from { opacity:0; transform: translateY(4px) } to { opacity:1; transform:none } }
+@keyframes livePulse{ 0%{ transform:scale(1); opacity:1 } 50%{ transform:scale(1.5); opacity:.4 } 100%{ transform:scale(1); opacity:1 } }
+/* logo: "Listen" — concentric pulse rings emanating from a dot */
+@keyframes ddRing { 0%{ transform:translate(-50%,-50%) scale(1); opacity:.85 } 100%{ transform:translate(-50%,-50%) scale(3.2); opacity:0 } }
+
+/* live waveform — bars animate height; stagger set inline */
+.wave { display: flex; align-items: center; gap: 2.5px; height: 22px; }
+.wave > i {
+  display: block; width: 3px; height: 100%;
+  border-radius: 2px; background: currentColor;
+  transform-origin: center;
+  animation: cadBar 0.9s ease-in-out infinite;
+}
+.wave.is-idle > i { animation-play-state: paused; transform: scaleY(0.3); }
+
+/* shimmer text while polishing */
+.shimmer {
+  background: linear-gradient(100deg, var(--ink-faint) 30%, var(--accent) 50%, var(--ink-faint) 70%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  animation: cadShimmer 1.3s linear infinite;
+}
+.spinner {
+  width: 13px; height: 13px; border-radius: 50%;
+  border: 2px solid var(--accent-wash); border-top-color: var(--accent);
+  animation: cadSpin 0.7s linear infinite;
+}

@@ -1,0 +1,21 @@
+{
+  "agents": [
+    "codex",
+    "claude"
+  ],
+  "files": {
+    "AGENTS.md": "658d792c59e28425cc4068eeb1ad52d65f206cde30437b1299315a76e48ba1a2",
+    "CLAUDE.md": "658d792c59e28425cc4068eeb1ad52d65f206cde30437b1299315a76e48ba1a2"
+  },
+  "languages": [],
+  "package": "agents-bootstrap",
+  "references": [
+    "/tmp/voce-notes.md"
+  ],
+  "schemaVersion": 1,
+  "set": "defaults",
+  "source": "https://github.com/sgstq/agents-bootstrap",
+  "status": "installed",
+  "updatePolicy": "ask",
+  "version": "0.2.0"
+}

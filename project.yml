@@ -1,0 +1,95 @@
+name: Voce
+
+options:
+  minimumXcodeGenVersion: 2.45.0
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    SDKROOT: macosx
+    SWIFT_VERSION: "6.0"
+    SUPPORTED_PLATFORMS: macosx
+    SUPPORTS_MACCATALYST: NO
+    SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+    # Stable signing identity = stable TCC identity: macOS keys the
+    # Accessibility/Microphone grants to bundle ID + certificate, so signing
+    # every build with the same cert makes updates inherit permissions
+    # instead of demanding a re-grant. Swap for a Developer ID at release.
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "Buttons Self-Signed"
+    # Version baseline; release tooling overrides these on the command line
+    # (xcodebuild MARKETING_VERSION=… CURRENT_PROJECT_VERSION=…).
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+targets:
+  Voce:
+    type: application
+    platform: macOS
+    sources:
+      - path: Voce
+        excludes:
+          - Info.plist
+          - Voce.entitlements
+    info:
+      path: Voce/Info.plist
+      properties:
+        CFBundleDevelopmentRegion: $(DEVELOPMENT_LANGUAGE)
+        CFBundleExecutable: $(EXECUTABLE_NAME)
+        CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
+        CFBundleInfoDictionaryVersion: "6.0"
+        CFBundleName: $(PRODUCT_NAME)
+        CFBundlePackageType: APPL
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSUIElement: true
+        NSMicrophoneUsageDescription: Voce needs microphone access to capture speech while push-to-talk is active.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sgstq.voce
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_ENTITLEMENTS: Voce/Voce.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Voce/Info.plist
+    dependencies:
+      - sdk: SwiftUI.framework
+      - sdk: AppKit.framework
+      - sdk: AVFoundation.framework
+      - sdk: ApplicationServices.framework
+      - sdk: Security.framework
+
+  VoceTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: VoceTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sgstq.voce.tests
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: Voce
+
+schemes:
+  Voce:
+    build:
+      targets:
+        Voce: all
+    run:
+      config: Debug
+      executable: Voce
+    test:
+      config: Debug
+      targets:
+        - VoceTests
+      gatherCoverageData: false
+    profile:
+      config: Release
+      executable: Voce
+    analyze:
+      config: Debug
+    archive:
+      config: Release
