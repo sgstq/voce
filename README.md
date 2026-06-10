@@ -6,6 +6,9 @@ Voce is a ground-up native rewrite (SwiftUI + AppKit) of an earlier cross-platfo
 
 ### Warning
 <p align="center">
+  <img src="assets/warning.png" width="72" alt="Warning">
+</p>
+<p align="center">
   <b>ALL CODE AND SCRIPTS IN THIS REPOSITORY—EVEN THOSE BASED ON REAL DOCUMENTATION—ARE ENTIRELY EXPERIMENTAL. ALL LOGIC WAS HALLUCINATED BY MATRIX MULTIPLICATIONS….. HAPHAZARDLY. THE FOLLOWING REPOSITORY CONTAINS UNTESTED CODE AND DUE TO ITS CONTENT IT SHOULD NOT BE USED ANYWHERE BY ANYONE ■</b>
 </p>
 
