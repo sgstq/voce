@@ -1,66 +1,79 @@
+<div align="center">
+
+<img src="Voce/Assets.xcassets/AppIcon.appiconset/icon_256.png" width="96" alt="Voce" />
+
 # Voce
 
-**Voce** (Italian for *voice*) is a fast, native **macOS** push-to-talk dictation app: hold a hotkey, speak, and polished text lands at your cursor in any app — in under two seconds.
+**Push-to-talk dictation for macOS.**
+Hold a key, speak, and polished text lands at your cursor — in any app.
 
-Voce is a ground-up native rewrite (SwiftUI + AppKit) of an earlier cross-platform Rust/egui prototype ([duper-disper](https://github.com/sgstq/duper-disper)). It keeps the proven domain logic and discards the UI/process architecture that made the prototype slow, memory-heavy, and unable to match the intended design.
+![macOS](https://img.shields.io/badge/macOS-26%2B-000000?logo=apple&logoColor=white)
+[![Download](https://img.shields.io/github/v/release/sgstq/voce?label=download&color=2ea043)](https://github.com/sgstq/voce/releases/latest)
 
-### Warning
-<p align="center">
-  <img src="assets/warning.png" width="360" alt="Warning">
-</p>
-<p align="center">
-  <b>ALL CODE AND SCRIPTS IN THIS REPOSITORY—EVEN THOSE BASED ON REAL DOCUMENTATION—ARE ENTIRELY EXPERIMENTAL. ALL LOGIC WAS HALLUCINATED BY MATRIX MULTIPLICATIONS….. HAPHAZARDLY. THE FOLLOWING REPOSITORY CONTAINS UNTESTED CODE AND DUE TO ITS CONTENT IT SHOULD NOT BE USED ANYWHERE BY ANYONE ■</b>
-</p>
+<br />
 
----
+[**⬇ Download Voce**](https://github.com/sgstq/voce/releases/latest)<br />
+<sub>Apple Silicon · macOS 26+</sub>
+
+<br />
+
+<img src="assets/typing.gif" width="760" alt="Dictating into an editor with Voce" />
+
+</div>
 
 ## Features
 
-- **Push-to-talk** — hold a recordable hotkey (F-keys or modifiers: Fn, Right ⌥, ⌘…), release to transcribe, refine, and insert.
-- **Live preview overlay** — voice-reactive waveform, words materializing as you speak, soft typing dots, shimmer while polishing. Never steals focus; zero CPU while hidden.
-- **Streaming transcription** — OpenAI Realtime (`gpt-realtime-whisper`) over WebSocket with live deltas.
-- **Context-aware refinement** — an LLM cleanup pass fed with the text around your cursor (via Accessibility), so identifiers keep their exact casing and mid-sentence dictation continues the sentence. Providers: OpenAI, Groq, Cerebras, or **Apple on-device** (no network, no key).
-- **Multilingual** — automatic language detection, mid-dictation language switches preserved; a deterministic gate rejects refiner output that translated or truncated the dictation (the raw transcript wins).
-- **Clipboard-free insertion** — text is typed via synthesized Unicode keystrokes; your clipboard and clipboard-history manager are never touched. History-safe transient clipboard exists only as an opt-in fallback.
-- **Safety guards** — silence/too-short gates, focus-change guard (never types into the wrong app), refusal/truncation/translation gates on refinement.
-- **Menu-bar native** — no Dock icon, state-reactive icon, launch-at-login (System Settings Login Items), API keys in the Keychain, ~75 MB and 0% CPU idle.
+- **Talk anywhere** — hold your hotkey, speak, release. Text appears wherever your cursor is: editors, chat, browsers, terminals.
+- **Polished, not raw** — a cleanup pass fixes grammar, punctuation, and filler words, and matches the style of the text already around your cursor.
+- **Fast** — streaming transcription; your words show up in about a second.
+- **Live overlay** — a floating waveform and words that appear as you speak. It never steals focus and disappears when you're done.
+- **Multilingual** — detects the spoken language automatically and keeps mid-sentence language switches intact.
+- **Private by choice** — run the cleanup fully on-device with Apple Intelligence: no API key, no network. Cloud providers (OpenAI, Groq, Cerebras) are optional.
+- **Clipboard-safe** — text is typed as real keystrokes, so your clipboard and its history are never touched.
+- **Out of the way** — lives in the menu bar with no Dock icon, launches at login, and uses near-zero CPU while idle.
 
 ## Install
 
-**[⬇ Download the latest release](https://github.com/sgstq/voce/releases/latest)** — open the DMG and drag Voce into Applications.
+**[⬇ Download the latest release](https://github.com/sgstq/voce/releases/latest)** — open the DMG and drag **Voce** into Applications.
 
-Or build and install locally (signed with a stable identity, so updates keep your permission grants):
-
-```bash
-scripts/install.sh                 # signed Release build → /Applications/Voce.app
-# or
-scripts/package.sh 0.x.y           # → dist/Voce-0.x.y.dmg (drag-to-install)
-```
-
-On first run, grant **Microphone** and **Accessibility** (System Settings → Privacy & Security), add your OpenAI API key in Settings, record a push-to-talk key, and dictate.
-
-## Documents
-- [docs/STRATEGY.md](docs/STRATEGY.md) — why a native macOS rewrite, and what we keep vs. discard
-- [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) — what Voce must do (functional + non-functional)
-- [docs/PLAN.md](docs/PLAN.md) — phased roadmap and the Rust→native component map
-- [docs/PORTING.md](docs/PORTING.md) — what was ported from the old Rust code
-
-## Design
-The visual spec lives in [`design/`](design/) (the "Cadence" exploration: tokens, mockups, screenshots). [`design/tokens.css`](design/tokens.css) is the source of truth for color, type, spacing, and motion.
-
-## Development
-Voce uses [XcodeGen](https://github.com/yonaskolb/XcodeGen) so `project.yml` is the source of truth for the Xcode project. The baseline is macOS 26+ with Swift 6, so local speech and Apple Intelligence-era APIs can be first-class instead of optional compatibility paths.
+Or build from source (requires Xcode):
 
 ```bash
-xcodegen generate
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project Voce.xcodeproj -scheme Voce -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test
+scripts/install.sh          # builds and installs Voce to /Applications
+scripts/package.sh 0.1.0    # or build a drag-to-install DMG in dist/
 ```
 
-Diagnostics: the whole pipeline logs stage-by-stage under the `com.sgstq.voce` subsystem —
+## Setup
 
-```bash
-log stream --predicate 'subsystem == "com.sgstq.voce"' --info
-```
+On first launch:
 
-## Target
-macOS 26+ · Swift 6 · menu-bar app (no Dock icon) · SwiftUI + AppKit · cloud-first (OpenAI Realtime) with Apple on-device refinement and modern local speech as the offline path.
+1. Grant **Microphone** and **Accessibility** in System Settings → Privacy & Security. Accessibility lets Voce type into other apps and read the text around your cursor.
+2. Open **Settings**, pick a transcription backend, and paste your OpenAI API key (kept in the macOS Keychain).
+3. Record a **push-to-talk key** — function keys and modifiers (Fn, ⌥, ⌘…) work best.
+4. Hold it, speak, release.
+
+<div align="center">
+  <img src="assets/settings.gif" width="480" alt="Voce settings" />
+</div>
+
+## Privacy
+
+Voce stores no recordings or transcripts. Audio goes to your chosen provider only for the moment it's transcribed, and the cleanup pass can run entirely on-device with Apple Intelligence — no key, no network. Your API keys stay in the macOS Keychain.
+
+## Requirements
+
+- macOS 26 or later, Apple Silicon
+- Microphone and Accessibility permissions
+- An OpenAI API key for transcription (the on-device cleanup needs no key)
+
+---
+
+Warning
+---
+<div align="center">
+
+
+  <b>ALL CODE AND SCRIPTS IN THIS REPOSITORY—EVEN THOSE BASED ON REAL DOCUMENTATION—ARE ENTIRELY EXPERIMENTAL. ALL LOGIC WAS HALLUCINATED BY MATRIX MULTIPLICATIONS….. HAPHAZARDLY. THE FOLLOWING REPOSITORY CONTAINS UNTESTED CODE AND DUE TO ITS CONTENT IT SHOULD NOT BE USED ANYWHERE BY ANYONE ■</b>
+
+  <img src="assets/warning.png" width="200" alt="Warning" />
+</div>
