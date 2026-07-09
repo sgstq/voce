@@ -42,7 +42,7 @@ actor AppleRefiner {
         session?.prewarm()
     }
 
-    func refine(prompt: String, fallback transcript: String) async throws -> String {
+    func refine(system: String, user: String, fallback transcript: String) async throws -> String {
         guard case .available = SystemLanguageModel.default.availability else {
             if case .unavailable(let reason) = SystemLanguageModel.default.availability {
                 throw AppleRefinerError.unavailable(Self.describe(reason))
@@ -50,11 +50,15 @@ actor AppleRefiner {
             throw AppleRefinerError.unavailable("unknown reason")
         }
 
-        let session = self.session ?? LanguageModelSession()
+        // A fresh session carries the rules as instructions (the on-device
+        // analogue of a system message) and starts with empty context, so no
+        // prior dictation can leak in. The prewarmed session only served to
+        // load the model; discard it now that the weights are hot.
         self.session = nil
+        let session = LanguageModelSession(instructions: system)
 
         do {
-            let response = try await session.respond(to: prompt)
+            let response = try await session.respond(to: user)
             let refined = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
             Self.log.info("refined on-device chars=\(refined.count)")
             if refined.isEmpty || Refiner.isRefusal(refined) {
