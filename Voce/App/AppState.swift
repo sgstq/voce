@@ -43,7 +43,7 @@ final class AppState: ObservableObject {
         self.configBox = configBox
         self.dictation = DictationCoordinator(
             configProvider: { configBox.value },
-            apiKeyProvider: { try keychainStore.read() },
+            apiKeyProvider: { backend in try keychainStore.read(account: backend.keychainAccount) },
             refinementKeyProvider: { provider in
                 guard let account = provider.keychainAccount else { return nil }
                 return try keychainStore.read(account: account)
@@ -136,20 +136,20 @@ final class AppState: ObservableObject {
         refreshPermissions()
     }
 
-    func loadAPIKey() -> String {
+    func loadTranscriptionKey(for backend: TranscriptionBackend) -> String {
         do {
             keychainMessage = nil
-            return try keychainStore.read() ?? ""
+            return try keychainStore.read(account: backend.keychainAccount) ?? ""
         } catch {
             keychainMessage = error.localizedDescription
             return ""
         }
     }
 
-    func saveAPIKey(_ value: String) {
+    func saveTranscriptionKey(_ value: String, for backend: TranscriptionBackend) {
         do {
             let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            try keychainStore.save(trimmed)
+            try keychainStore.save(trimmed, account: backend.keychainAccount)
             keychainMessage = trimmed.isEmpty ? "API key removed." : "API key saved in Keychain."
         } catch {
             keychainMessage = error.localizedDescription
