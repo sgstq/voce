@@ -59,6 +59,7 @@ final class AppConfigTests: XCTestCase {
         // Fields added after that config was written fall back to defaults.
         XCTAssertEqual(config.refinementModel, "gpt-5-mini")
         XCTAssertEqual(config.refinementProvider, .openAI)
+        XCTAssertEqual(config.deepgramModel, "nova-3")
     }
 
     func testDecodingToleratesMissingKeys() throws {

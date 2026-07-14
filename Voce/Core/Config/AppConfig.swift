@@ -7,6 +7,7 @@ struct AppConfig: Codable, Equatable {
     var transcriptionBackend: TranscriptionBackend
     var realtimeModel: String
     var realtimeDelay: RealtimeDelay
+    var deepgramModel: String
     var refinementEnabled: Bool
     var refinementProvider: RefinementProvider
     var refinementModel: String
@@ -22,6 +23,7 @@ struct AppConfig: Codable, Equatable {
         transcriptionBackend: TranscriptionBackend = .openAIRealtime,
         realtimeModel: String = "gpt-realtime-whisper",
         realtimeDelay: RealtimeDelay = .low,
+        deepgramModel: String = "nova-3",
         refinementEnabled: Bool = true,
         refinementProvider: RefinementProvider = .openAI,
         refinementModel: String = "gpt-5-mini",
@@ -36,6 +38,7 @@ struct AppConfig: Codable, Equatable {
         self.transcriptionBackend = transcriptionBackend
         self.realtimeModel = realtimeModel
         self.realtimeDelay = realtimeDelay
+        self.deepgramModel = deepgramModel
         self.refinementEnabled = refinementEnabled
         self.refinementProvider = refinementProvider
         self.refinementModel = refinementModel
@@ -47,7 +50,7 @@ struct AppConfig: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case hotkey, language, insertionMode, transcriptionBackend
-        case realtimeModel, realtimeDelay, refinementEnabled, refinementProvider, refinementModel
+        case realtimeModel, realtimeDelay, deepgramModel, refinementEnabled, refinementProvider, refinementModel
         case theme, accent, captureContext, captureScreenshots
     }
 
@@ -62,6 +65,7 @@ struct AppConfig: Codable, Equatable {
         self.transcriptionBackend = try container.decodeIfPresent(TranscriptionBackend.self, forKey: .transcriptionBackend) ?? defaults.transcriptionBackend
         self.realtimeModel = try container.decodeIfPresent(String.self, forKey: .realtimeModel) ?? defaults.realtimeModel
         self.realtimeDelay = try container.decodeIfPresent(RealtimeDelay.self, forKey: .realtimeDelay) ?? defaults.realtimeDelay
+        self.deepgramModel = try container.decodeIfPresent(String.self, forKey: .deepgramModel) ?? defaults.deepgramModel
         self.refinementEnabled = try container.decodeIfPresent(Bool.self, forKey: .refinementEnabled) ?? defaults.refinementEnabled
         self.refinementProvider = try container.decodeIfPresent(RefinementProvider.self, forKey: .refinementProvider) ?? defaults.refinementProvider
         self.refinementModel = try container.decodeIfPresent(String.self, forKey: .refinementModel) ?? defaults.refinementModel
@@ -96,6 +100,8 @@ enum InsertionMode: String, Codable, CaseIterable, Identifiable {
 
 enum TranscriptionBackend: String, Codable, CaseIterable, Identifiable {
     case openAIRealtime
+    case deepgram
+    case appleOnDevice
 
     var id: String { rawValue }
 
@@ -103,6 +109,35 @@ enum TranscriptionBackend: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .openAIRealtime:
             "OpenAI Realtime"
+        case .deepgram:
+            "Deepgram"
+        case .appleOnDevice:
+            "Apple on-device"
+        }
+    }
+
+    /// Short provider name for key-related UI ("OpenAI API key").
+    var keyLabel: String {
+        switch self {
+        case .openAIRealtime:
+            "OpenAI"
+        case .deepgram:
+            "Deepgram"
+        case .appleOnDevice:
+            "Apple"
+        }
+    }
+
+    /// Keychain account for the backend's API key, nil when the backend
+    /// needs none. OpenAI shares one key between transcription and refinement.
+    var keychainAccount: String? {
+        switch self {
+        case .openAIRealtime:
+            "openai-api-key"
+        case .deepgram:
+            "deepgram-api-key"
+        case .appleOnDevice:
+            nil
         }
     }
 }

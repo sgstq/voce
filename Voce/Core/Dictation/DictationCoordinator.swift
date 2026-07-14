@@ -32,11 +32,11 @@ final class DictationCoordinator: ObservableObject {
     private let inserter = TextInserter()
     private let refiner = Refiner()
     private let configProvider: @MainActor () -> AppConfig
-    private let apiKeyProvider: @MainActor () throws -> String?
+    private let apiKeyProvider: @MainActor (TranscriptionBackend) throws -> String?
     private let refinementKeyProvider: @MainActor (RefinementProvider) throws -> String?
 
     private var hotkey: HotkeyMonitor?
-    private var session: RealtimeTranscriptionSession?
+    private var session: (any TranscriptionSession)?
     private var eventTask: Task<Void, Never>?
     private var audioTask: Task<Void, Never>?
     private var timeoutTask: Task<Void, Never>?
@@ -49,7 +49,7 @@ final class DictationCoordinator: ObservableObject {
 
     init(
         configProvider: @escaping @MainActor () -> AppConfig,
-        apiKeyProvider: @escaping @MainActor () throws -> String?,
+        apiKeyProvider: @escaping @MainActor (TranscriptionBackend) throws -> String?,
         refinementKeyProvider: @escaping @MainActor (RefinementProvider) throws -> String?
     ) {
         self.configProvider = configProvider
@@ -93,13 +93,18 @@ final class DictationCoordinator: ObservableObject {
         guard phase == .idle else { return }
 
         let config = configProvider()
-        let apiKey = (try? apiKeyProvider()) ?? nil
-        guard let apiKey, !apiKey.isEmpty else {
-            Self.log.warning("begin: no API key configured")
-            showTransientError("Add your OpenAI API key in Settings")
-            return
+        let backend = config.transcriptionBackend
+        var apiKey = ""
+        if backend.keychainAccount != nil {
+            let stored = (try? apiKeyProvider(backend)) ?? nil
+            guard let stored, !stored.isEmpty else {
+                Self.log.warning("begin: no API key configured for \(backend.rawValue, privacy: .public)")
+                showTransientError("Add your \(backend.keyLabel) API key in Settings")
+                return
+            }
+            apiKey = stored
         }
-        Self.log.notice("begin: model=\(config.realtimeModel, privacy: .public) insertion=\(config.insertionMode.rawValue, privacy: .public)")
+        Self.log.notice("begin: backend=\(backend.rawValue, privacy: .public) insertion=\(config.insertionMode.rawValue, privacy: .public)")
 
         transcript = ""
         sampleCount = 0
@@ -107,12 +112,24 @@ final class DictationCoordinator: ObservableObject {
         releaseContext = nil
         errorDismissTask?.cancel()
 
-        let session = RealtimeTranscriptionSession(
-            apiKey: apiKey,
-            model: config.realtimeModel,
-            language: config.language,
-            delay: config.realtimeDelay
-        )
+        let session: any TranscriptionSession
+        switch backend {
+        case .openAIRealtime:
+            session = RealtimeTranscriptionSession(
+                apiKey: apiKey,
+                model: config.realtimeModel,
+                language: config.language,
+                delay: config.realtimeDelay
+            )
+        case .deepgram:
+            session = DeepgramTranscriptionSession(
+                apiKey: apiKey,
+                model: config.deepgramModel,
+                language: config.language
+            )
+        case .appleOnDevice:
+            session = AppleTranscriptionSession(language: config.language)
+        }
         self.session = session
 
         let chunks: AsyncStream<Data>
@@ -201,7 +218,7 @@ final class DictationCoordinator: ObservableObject {
         sampleCount += stats.sampleCount
     }
 
-    private func handle(_ event: RealtimeTranscriptionSession.Event) {
+    private func handle(_ event: TranscriptionEvent) {
         switch event {
         case .ready:
             break
@@ -209,6 +226,10 @@ final class DictationCoordinator: ObservableObject {
         case .delta(let delta):
             transcript += delta
             overlay.model.updateLiveText(transcript)
+
+        case .preview(let text):
+            // Interim text the backend may still rewrite — display only.
+            overlay.model.updateLiveText(text)
 
         case .completed(let finalTranscript):
             Self.log.notice("event: completed chars=\(finalTranscript.count) accumulated=\(self.transcript.count)")

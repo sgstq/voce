@@ -50,7 +50,7 @@ struct SettingsView: View {
             }
 
             Section("Transcription") {
-                Picker("Backend", selection: binding(\.transcriptionBackend)) {
+                Picker("Backend", selection: backendBinding) {
                     ForEach(TranscriptionBackend.allCases) { backend in
                         Text(backend.label).tag(backend)
                     }
@@ -65,32 +65,60 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                TextField(
-                    "Realtime model",
-                    text: binding(\.realtimeModel)
-                )
+                switch appState.config.transcriptionBackend {
+                case .openAIRealtime:
+                    TextField(
+                        "Realtime model",
+                        text: binding(\.realtimeModel)
+                    )
 
-                Picker("Realtime delay", selection: binding(\.realtimeDelay)) {
-                    ForEach(RealtimeDelay.allCases) { delay in
-                        Text(delay.label).tag(delay)
+                    Picker("Realtime delay", selection: binding(\.realtimeDelay)) {
+                        ForEach(RealtimeDelay.allCases) { delay in
+                            Text(delay.label).tag(delay)
+                        }
                     }
+                case .deepgram:
+                    TextField(
+                        "Deepgram model",
+                        text: binding(\.deepgramModel)
+                    )
+                case .appleOnDevice:
+                    LabeledContent("On-device model") {
+                        HStack(spacing: 10) {
+                            Text(appState.appleSpeechModelState?.label ?? "Checking…")
+                                .foregroundStyle(.secondary)
+                            if appState.appleSpeechModelState?.offersDownload == true {
+                                Button("Download Model") {
+                                    appState.downloadAppleSpeechModel()
+                                }
+                            }
+                        }
+                    }
+                    Text("Runs entirely on this Mac — no API key needed. Automatic uses the system language.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
-                SecureField("OpenAI API key", text: $apiKey)
+                if appState.config.transcriptionBackend.keychainAccount != nil {
+                    SecureField(
+                        "\(appState.config.transcriptionBackend.keyLabel) API key",
+                        text: $apiKey
+                    )
 
-                HStack {
-                    Button("Save Key") {
-                        appState.saveAPIKey(apiKey)
-                    }
+                    HStack {
+                        Button("Save Key") {
+                            appState.saveTranscriptionKey(apiKey, for: appState.config.transcriptionBackend)
+                        }
 
-                    Button("Clear Key") {
-                        apiKey = ""
-                        appState.saveAPIKey("")
-                    }
+                        Button("Clear Key") {
+                            apiKey = ""
+                            appState.saveTranscriptionKey("", for: appState.config.transcriptionBackend)
+                        }
 
-                    if let keychainMessage = appState.keychainMessage {
-                        Text(keychainMessage)
-                            .foregroundStyle(.secondary)
+                        if let keychainMessage = appState.keychainMessage {
+                            Text(keychainMessage)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
@@ -113,7 +141,8 @@ struct SettingsView: View {
                         text: binding(\.refinementModel)
                     )
 
-                    if appState.config.refinementProvider == .openAI {
+                    if appState.config.refinementProvider == .openAI,
+                       appState.config.transcriptionBackend == .openAIRealtime {
                         Text("Uses the same OpenAI key as transcription.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -216,11 +245,35 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .padding(20)
         .onAppear {
-            apiKey = appState.loadAPIKey()
+            apiKey = appState.loadTranscriptionKey(for: appState.config.transcriptionBackend)
             refinementKey = appState.loadRefinementKey(for: appState.config.refinementProvider)
             appState.refreshPermissions()
             appState.refreshLaunchAtLogin()
+            if appState.config.transcriptionBackend == .appleOnDevice {
+                appState.refreshAppleSpeechModel()
+            }
         }
+        .onChange(of: appState.config.language) {
+            // The on-device model is per-language; re-check when it changes.
+            if appState.config.transcriptionBackend == .appleOnDevice {
+                appState.refreshAppleSpeechModel()
+            }
+        }
+    }
+
+    /// Switching backend also loads that backend's saved key into the field
+    /// and re-checks the on-device model when Apple is selected.
+    private var backendBinding: Binding<TranscriptionBackend> {
+        Binding(
+            get: { appState.config.transcriptionBackend },
+            set: { newBackend in
+                appState.updateConfig { $0.transcriptionBackend = newBackend }
+                apiKey = appState.loadTranscriptionKey(for: newBackend)
+                if newBackend == .appleOnDevice {
+                    appState.refreshAppleSpeechModel()
+                }
+            }
+        )
     }
 
     /// Switching provider also swaps the model field to the new provider's

@@ -43,7 +43,10 @@ final class AppState: ObservableObject {
         self.configBox = configBox
         self.dictation = DictationCoordinator(
             configProvider: { configBox.value },
-            apiKeyProvider: { try keychainStore.read() },
+            apiKeyProvider: { backend in
+                guard let account = backend.keychainAccount else { return nil }
+                return try keychainStore.read(account: account)
+            },
             refinementKeyProvider: { provider in
                 guard let account = provider.keychainAccount else { return nil }
                 return try keychainStore.read(account: account)
@@ -136,23 +139,59 @@ final class AppState: ObservableObject {
         refreshPermissions()
     }
 
-    func loadAPIKey() -> String {
+    func loadTranscriptionKey(for backend: TranscriptionBackend) -> String {
+        guard let account = backend.keychainAccount else { return "" }
         do {
             keychainMessage = nil
-            return try keychainStore.read() ?? ""
+            return try keychainStore.read(account: account) ?? ""
         } catch {
             keychainMessage = error.localizedDescription
             return ""
         }
     }
 
-    func saveAPIKey(_ value: String) {
+    func saveTranscriptionKey(_ value: String, for backend: TranscriptionBackend) {
+        guard let account = backend.keychainAccount else { return }
         do {
             let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            try keychainStore.save(trimmed)
+            try keychainStore.save(trimmed, account: account)
             keychainMessage = trimmed.isEmpty ? "API key removed." : "API key saved in Keychain."
         } catch {
             keychainMessage = error.localizedDescription
+        }
+    }
+
+    /// State of the on-device speech model for the configured language.
+    /// Nil while a refresh is in flight ("Checking…" in Settings).
+    @Published private(set) var appleSpeechModelState: AppleSpeechAssets.ModelState?
+    private var appleSpeechTask: Task<Void, Never>?
+
+    func refreshAppleSpeechModel() {
+        appleSpeechTask?.cancel()
+        appleSpeechModelState = nil
+        let language = config.language
+        appleSpeechTask = Task { [weak self] in
+            let state = await AppleSpeechAssets.state(for: language)
+            guard !Task.isCancelled else { return }
+            self?.appleSpeechModelState = state
+        }
+    }
+
+    func downloadAppleSpeechModel() {
+        appleSpeechTask?.cancel()
+        appleSpeechModelState = .downloading
+        let language = config.language
+        appleSpeechTask = Task { [weak self] in
+            do {
+                try await AppleSpeechAssets.download(for: language)
+            } catch {
+                guard !Task.isCancelled else { return }
+                self?.appleSpeechModelState = .failed(error.localizedDescription)
+                return
+            }
+            let state = await AppleSpeechAssets.state(for: language)
+            guard !Task.isCancelled else { return }
+            self?.appleSpeechModelState = state
         }
     }
 
