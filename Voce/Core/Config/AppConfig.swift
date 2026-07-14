@@ -101,6 +101,7 @@ enum InsertionMode: String, Codable, CaseIterable, Identifiable {
 enum TranscriptionBackend: String, Codable, CaseIterable, Identifiable {
     case openAIRealtime
     case deepgram
+    case appleOnDevice
 
     var id: String { rawValue }
 
@@ -110,6 +111,8 @@ enum TranscriptionBackend: String, Codable, CaseIterable, Identifiable {
             "OpenAI Realtime"
         case .deepgram:
             "Deepgram"
+        case .appleOnDevice:
+            "Apple on-device"
         }
     }
 
@@ -120,17 +123,21 @@ enum TranscriptionBackend: String, Codable, CaseIterable, Identifiable {
             "OpenAI"
         case .deepgram:
             "Deepgram"
+        case .appleOnDevice:
+            "Apple"
         }
     }
 
-    /// Keychain account for the backend's API key. OpenAI shares one key
-    /// between transcription and refinement.
-    var keychainAccount: String {
+    /// Keychain account for the backend's API key, nil when the backend
+    /// needs none. OpenAI shares one key between transcription and refinement.
+    var keychainAccount: String? {
         switch self {
         case .openAIRealtime:
             "openai-api-key"
         case .deepgram:
             "deepgram-api-key"
+        case .appleOnDevice:
+            nil
         }
     }
 }

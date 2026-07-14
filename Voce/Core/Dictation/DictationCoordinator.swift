@@ -94,11 +94,15 @@ final class DictationCoordinator: ObservableObject {
 
         let config = configProvider()
         let backend = config.transcriptionBackend
-        let apiKey = (try? apiKeyProvider(backend)) ?? nil
-        guard let apiKey, !apiKey.isEmpty else {
-            Self.log.warning("begin: no API key configured for \(backend.rawValue, privacy: .public)")
-            showTransientError("Add your \(backend.keyLabel) API key in Settings")
-            return
+        var apiKey = ""
+        if backend.keychainAccount != nil {
+            let stored = (try? apiKeyProvider(backend)) ?? nil
+            guard let stored, !stored.isEmpty else {
+                Self.log.warning("begin: no API key configured for \(backend.rawValue, privacy: .public)")
+                showTransientError("Add your \(backend.keyLabel) API key in Settings")
+                return
+            }
+            apiKey = stored
         }
         Self.log.notice("begin: backend=\(backend.rawValue, privacy: .public) insertion=\(config.insertionMode.rawValue, privacy: .public)")
 
@@ -123,6 +127,8 @@ final class DictationCoordinator: ObservableObject {
                 model: config.deepgramModel,
                 language: config.language
             )
+        case .appleOnDevice:
+            session = AppleTranscriptionSession(language: config.language)
         }
         self.session = session
 
