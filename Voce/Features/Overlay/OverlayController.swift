@@ -34,6 +34,14 @@ final class OverlayModel: ObservableObject {
         text = newText
     }
 
+    /// Push one audio chunk's energy. Speech RMS tops out around 0.25; the
+    /// 0.6 exponent lifts quiet talk.
+    func pushAudio(sumSquares: Double, sampleCount: Int) {
+        guard sampleCount > 0 else { return }
+        let rms = (sumSquares / Double(sampleCount)).squareRoot()
+        pushLevel(pow(min(1.0, rms / 0.25), 0.6))
+    }
+
     /// Push one normalized mic level (0…1). Rises instantly, falls softly.
     func pushLevel(_ level: Double) {
         let clamped = min(1, max(0, level))

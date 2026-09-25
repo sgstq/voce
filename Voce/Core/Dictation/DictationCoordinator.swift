@@ -113,24 +113,7 @@ final class DictationCoordinator: ObservableObject {
         releaseContext = nil
         errorDismissTask?.cancel()
 
-        let session: any TranscriptionSession
-        switch backend {
-        case .openAIRealtime:
-            session = RealtimeTranscriptionSession(
-                apiKey: apiKey,
-                model: config.realtimeModel,
-                language: config.language,
-                delay: config.realtimeDelay
-            )
-        case .deepgram:
-            session = DeepgramTranscriptionSession(
-                apiKey: apiKey,
-                model: config.deepgramModel,
-                language: config.language
-            )
-        case .appleOnDevice:
-            session = AppleTranscriptionSession(language: config.language)
-        }
+        let session = backend.makeSession(config: config, apiKey: apiKey)
         self.session = session
 
         let chunks: AsyncStream<Data>
@@ -171,12 +154,7 @@ final class DictationCoordinator: ObservableObject {
                 guard let self else { return }
                 let stats = AudioMath.rmsEnergy(pcm16: chunk)
                 self.accumulate(stats)
-                // Drive the overlay waveform with this chunk's level. Speech
-                // RMS tops out around 0.25; the 0.6 exponent lifts quiet talk.
-                if stats.sampleCount > 0 {
-                    let rms = (stats.sumSquares / Double(stats.sampleCount)).squareRoot()
-                    self.overlay.model.pushLevel(pow(min(1.0, rms / 0.25), 0.6))
-                }
+                self.overlay.model.pushAudio(sumSquares: stats.sumSquares, sampleCount: stats.sampleCount)
                 await session.sendAudio(chunk)
             }
         }
@@ -217,8 +195,8 @@ final class DictationCoordinator: ObservableObject {
 
         timeoutTask = Task { [weak self] in
             try? await Task.sleep(for: Self.completionTimeout)
-            guard !Task.isCancelled else { return }
-            self?.finishFromTimeout()
+            guard !Task.isCancelled, self?.phase == .finalizing else { return }
+            self?.finishWithPendingTranscript(orFail: "Timed out waiting for the transcript")
         }
     }
 
@@ -266,22 +244,17 @@ final class DictationCoordinator: ObservableObject {
 
         case .closed:
             if phase == .finalizing {
-                let pending = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-                if pending.isEmpty {
-                    showTransientError("The session closed without a transcript")
-                    cancelDictation()
-                } else {
-                    finishDictation(with: pending)
-                }
+                finishWithPendingTranscript(orFail: "The session closed without a transcript")
             }
         }
     }
 
-    private func finishFromTimeout() {
-        guard phase == .finalizing else { return }
+    /// Delivers whatever transcript arrived so far, or reports `message`
+    /// when nothing did.
+    private func finishWithPendingTranscript(orFail message: String) {
         let pending = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         if pending.isEmpty {
-            showTransientError("Timed out waiting for the transcript")
+            showTransientError(message)
             cancelDictation()
         } else {
             finishDictation(with: pending)
@@ -331,14 +304,7 @@ final class DictationCoordinator: ObservableObject {
         Task { [weak self] in
             var context = context
             if config.screenContext != .off, let windowText = await screenTask?.value {
-                switch config.screenContext {
-                case .termsOnly:
-                    context.screenVocabulary = VocabularyDistiller.distill(from: windowText)
-                case .fullText:
-                    context.screenText = VocabularyDistiller.redactSecrets(in: windowText)
-                case .off:
-                    break
-                }
+                context.addScreenText(windowText, mode: config.screenContext)
                 Self.log.notice(
                     "screen context: mode=\(config.screenContext.rawValue, privacy: .public) terms=\(context.screenVocabulary.count) text.len=\(context.screenText.count)"
                 )
