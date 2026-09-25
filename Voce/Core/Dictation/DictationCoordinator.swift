@@ -145,6 +145,7 @@ final class DictationCoordinator: ObservableObject {
 
         phase = .recording
         overlay.model.phase = .listening
+        overlay.model.showsTranscript = config.showLiveTranscript
         overlay.model.updateLiveText("")
         overlay.model.resetLevels()
         overlay.show()

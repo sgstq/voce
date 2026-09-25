@@ -9,10 +9,14 @@ final class SettingsWindowController {
         if window == nil {
             let contentView = SettingsView(appState: appState)
             let hostingController = NSHostingController(rootView: contentView)
+            // Let SwiftUI drive the title and the unified toolbar, so the
+            // sidebar extends under the title bar like System Settings.
+            hostingController.sceneBridgingOptions = [.title, .toolbars]
             let window = NSWindow(contentViewController: hostingController)
-            window.title = "Voce Settings"
-            window.setContentSize(NSSize(width: 620, height: 540))
-            window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+            window.toolbarStyle = .unified
+            window.setContentSize(NSSize(width: 720, height: 540))
+            window.contentMinSize = NSSize(width: 640, height: 440)
             window.isReleasedWhenClosed = false
             window.center()
             self.window = window

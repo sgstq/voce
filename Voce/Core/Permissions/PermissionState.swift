@@ -42,6 +42,13 @@ struct PermissionState: Equatable {
         }
     }
 
+    static func openMicrophoneSettings() {
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
+        if let url {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
     /// Shows the system dialog on first ask; later calls are no-ops and the
     /// user must flip the switch in System Settings instead.
     static func requestScreenRecordingPrompt() {

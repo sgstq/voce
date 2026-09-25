@@ -1,72 +1,36 @@
 import AppKit
 import SwiftUI
 
+/// A short native menu: what Voce is doing, the one next step if setup is
+/// unfinished, Settings and Quit. Permission details live in Settings.
 struct MenuBarContentView: View {
     @ObservedObject var appState: AppState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Voce", systemImage: "waveform")
-                .font(.headline)
+        Text(appState.statusLine)
 
-            Text(appState.statusLine)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Divider()
-
-            Button("Open Settings") {
-                appState.openSettings()
+        if appState.needsSetup {
+            Button("Finish Setting Up…") {
+                appState.openOnboarding()
             }
-
-            Divider()
-
-            PermissionLine(title: "Microphone", value: appState.permissionState.microphone.label)
-            PermissionLine(
-                title: "Accessibility",
-                value: appState.permissionState.accessibilityTrusted ? "Allowed" : "Needs access"
-            )
-
-            Button("Request Microphone") {
-                appState.requestMicrophoneAccess()
-            }
-
-            Button("Open Accessibility Settings") {
-                appState.openAccessibilitySettings()
-            }
-
-            Button("Refresh Permissions") {
-                appState.refreshPermissions()
-            }
-
-            if let configError = appState.configError {
-                Divider()
-                Text(configError)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-
-            Divider()
-
-            Button("Quit") {
-                NSApp.terminate(nil)
-            }
-            .keyboardShortcut("q")
         }
-        .padding(.vertical, 4)
-    }
-}
 
-private struct PermissionLine: View {
-    let title: String
-    let value: String
-
-    var body: some View {
-        HStack {
-            Text(title)
-            Spacer()
-            Text(value)
-                .foregroundStyle(.secondary)
+        if let configError = appState.configError {
+            Text(configError)
         }
+
+        Divider()
+
+        Button("Settings…") {
+            appState.openSettings()
+        }
+        .keyboardShortcut(",")
+
+        Divider()
+
+        Button("Quit Voce") {
+            NSApp.terminate(nil)
+        }
+        .keyboardShortcut("q")
     }
 }

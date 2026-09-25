@@ -15,6 +15,7 @@ struct AppConfig: Codable, Equatable {
     var accent: AccentColor
     var captureContext: Bool
     var screenContext: ScreenContextMode
+    var showLiveTranscript: Bool
 
     init(
         hotkey: HotkeySpec = .defaultPushToTalk,
@@ -28,9 +29,10 @@ struct AppConfig: Codable, Equatable {
         refinementProvider: RefinementProvider = .openAI,
         refinementModel: String = "gpt-5-mini",
         theme: AppTheme = .system,
-        accent: AccentColor = .violet,
+        accent: AccentColor = .system,
         captureContext: Bool = true,
-        screenContext: ScreenContextMode = .off
+        screenContext: ScreenContextMode = .off,
+        showLiveTranscript: Bool = false
     ) {
         self.hotkey = hotkey
         self.language = language
@@ -46,12 +48,13 @@ struct AppConfig: Codable, Equatable {
         self.accent = accent
         self.captureContext = captureContext
         self.screenContext = screenContext
+        self.showLiveTranscript = showLiveTranscript
     }
 
     private enum CodingKeys: String, CodingKey {
         case hotkey, language, insertionMode, transcriptionBackend
         case realtimeModel, realtimeDelay, deepgramModel, refinementEnabled, refinementProvider, refinementModel
-        case theme, accent, captureContext, screenContext
+        case theme, accent, captureContext, screenContext, showLiveTranscript
     }
 
     /// Tolerant decoding: every missing key falls back to its default, so
@@ -73,6 +76,7 @@ struct AppConfig: Codable, Equatable {
         self.accent = try container.decodeIfPresent(AccentColor.self, forKey: .accent) ?? defaults.accent
         self.captureContext = try container.decodeIfPresent(Bool.self, forKey: .captureContext) ?? defaults.captureContext
         self.screenContext = try container.decodeIfPresent(ScreenContextMode.self, forKey: .screenContext) ?? defaults.screenContext
+        self.showLiveTranscript = try container.decodeIfPresent(Bool.self, forKey: .showLiveTranscript) ?? defaults.showLiveTranscript
     }
 }
 
@@ -221,6 +225,8 @@ enum AppTheme: String, Codable, CaseIterable, Identifiable {
 }
 
 enum AccentColor: String, Codable, CaseIterable, Identifiable {
+    /// Follows the accent chosen in System Settings.
+    case system
     case violet
     case blue
     case green
@@ -230,6 +236,8 @@ enum AccentColor: String, Codable, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
+        case .system:
+            "System"
         case .violet:
             "Violet"
         case .blue:
