@@ -13,7 +13,7 @@ final class AppConfigTests: XCTestCase {
         XCTAssertEqual(config.realtimeDelay, .low)
         XCTAssertTrue(config.refinementEnabled)
         XCTAssertTrue(config.captureContext)
-        XCTAssertFalse(config.captureScreenshots)
+        XCTAssertEqual(config.screenContext, .off)
     }
 
     func testConfigStoreRoundTripsJSON() throws {
@@ -29,7 +29,7 @@ final class AppConfigTests: XCTestCase {
         config.language = "es"
         config.insertionMode = .keystrokes
         config.realtimeDelay = .medium
-        config.captureScreenshots = true
+        config.screenContext = .termsOnly
 
         try store.save(config)
 
@@ -56,10 +56,12 @@ final class AppConfigTests: XCTestCase {
 
         let config = try JSONDecoder().decode(AppConfig.self, from: Data(legacyJSON.utf8))
         XCTAssertEqual(config.hotkey, HotkeySpec(keyCode: 97, kind: .key, displayName: "F6"))
-        // Fields added after that config was written fall back to defaults.
+        // Fields added after that config was written fall back to defaults;
+        // the retired "captureScreenshots" key is ignored harmlessly.
         XCTAssertEqual(config.refinementModel, "gpt-5-mini")
         XCTAssertEqual(config.refinementProvider, .openAI)
         XCTAssertEqual(config.deepgramModel, "nova-3")
+        XCTAssertEqual(config.screenContext, .off)
     }
 
     func testDecodingToleratesMissingKeys() throws {

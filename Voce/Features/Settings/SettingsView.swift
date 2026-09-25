@@ -172,10 +172,29 @@ struct SettingsView: View {
                     isOn: binding(\.captureContext)
                 )
 
-                Toggle(
-                    "Capture screenshots",
-                    isOn: binding(\.captureScreenshots)
-                )
+                Picker("Screen context", selection: binding(\.screenContext)) {
+                    ForEach(ScreenContextMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                Text(appState.config.screenContext.caption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if appState.config.screenContext != .off,
+                   !appState.permissionState.screenRecordingGranted {
+                    HStack {
+                        Text("Needs Screen Recording access to read the active window.")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                        Button("Request") {
+                            appState.requestScreenRecordingAccess()
+                        }
+                        Button("Open Settings") {
+                            appState.openScreenRecordingSettings()
+                        }
+                    }
+                }
             }
 
             Section("Appearance") {
@@ -218,6 +237,10 @@ struct SettingsView: View {
                 LabeledContent(
                     "Accessibility",
                     value: appState.permissionState.accessibilityTrusted ? "Allowed" : "Needs access"
+                )
+                LabeledContent(
+                    "Screen Recording",
+                    value: appState.permissionState.screenRecordingGranted ? "Allowed" : "Not granted"
                 )
 
                 HStack {

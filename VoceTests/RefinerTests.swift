@@ -26,6 +26,49 @@ final class RefinerTests: XCTestCase {
         XCTAssertFalse(prompt.user.contains("Surrounding text"))
     }
 
+    func testPromptIncludesScreenVocabulary() {
+        var context = FocusContext()
+        context.screenVocabulary = ["RealtimeProtocol", "CLAUDE.md", "gpt-4o-transcribe"]
+
+        let prompt = Refiner.buildPrompt(transcript: "hi", context: context, language: "en")
+
+        XCTAssertTrue(prompt.user.contains("Exact spellings visible in the active window"))
+        XCTAssertTrue(prompt.user.contains("RealtimeProtocol, CLAUDE.md, gpt-4o-transcribe"))
+        XCTAssertFalse(prompt.user.contains("{screen_context_section}"))
+    }
+
+    func testPromptIncludesScreenTextWithOCRCaveat() {
+        var context = FocusContext()
+        context.screenText = "func sessionUpdateJSON(model: String)"
+
+        let prompt = Refiner.buildPrompt(transcript: "hi", context: context, language: "en")
+
+        XCTAssertTrue(prompt.user.contains("Text recognized on screen"))
+        XCTAssertTrue(prompt.user.contains("may contain OCR errors"))
+        XCTAssertTrue(prompt.user.contains("func sessionUpdateJSON(model: String)"))
+    }
+
+    func testPromptOmitsScreenSectionWhenEmpty() {
+        let prompt = Refiner.buildPrompt(transcript: "hi", context: FocusContext(), language: "en")
+
+        XCTAssertFalse(prompt.user.contains("Exact spellings"))
+        XCTAssertFalse(prompt.user.contains("Text recognized on screen"))
+        XCTAssertFalse(prompt.user.contains("{screen_context_section}"))
+    }
+
+    func testScreenVocabularyWinsOverScreenText() {
+        // The coordinator sets exactly one per mode; if both ever arrive,
+        // the compact vocabulary is the safer prompt.
+        var context = FocusContext()
+        context.screenVocabulary = ["VoceApp"]
+        context.screenText = "should not appear"
+
+        let prompt = Refiner.buildPrompt(transcript: "hi", context: context, language: "en")
+
+        XCTAssertTrue(prompt.user.contains("VoceApp"))
+        XCTAssertFalse(prompt.user.contains("should not appear"))
+    }
+
     func testPromptCarriesExplicitLanguageContract() {
         let prompt = Refiner.buildPrompt(transcript: "привет", context: FocusContext(), language: "ru")
         XCTAssertTrue(prompt.system.contains("The dictation is primarily Russian"))

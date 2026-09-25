@@ -7,9 +7,12 @@ import os
 struct PermissionState: Equatable {
     var microphone: MicrophonePermission
     var accessibilityTrusted: Bool
+    var screenRecordingGranted: Bool
 
     private static let log = Logger(subsystem: "com.sgstq.voce", category: "permissions")
 
+    /// Screen Recording is deliberately absent here: it gates only the
+    /// optional screen-context feature, never core dictation.
     var isReadyForPhaseZero: Bool {
         microphone == .authorized && accessibilityTrusted
     }
@@ -17,9 +20,12 @@ struct PermissionState: Equatable {
     static func current() -> PermissionState {
         let state = PermissionState(
             microphone: MicrophonePermission.current(),
-            accessibilityTrusted: AXIsProcessTrusted()
+            accessibilityTrusted: AXIsProcessTrusted(),
+            screenRecordingGranted: CGPreflightScreenCaptureAccess()
         )
-        log.notice("mic=\(state.microphone.rawValue, privacy: .public) axTrusted=\(state.accessibilityTrusted)")
+        log.notice(
+            "mic=\(state.microphone.rawValue, privacy: .public) axTrusted=\(state.accessibilityTrusted) screen=\(state.screenRecordingGranted)"
+        )
         return state
     }
 
@@ -31,6 +37,19 @@ struct PermissionState: Equatable {
 
     static func openAccessibilitySettings() {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+        if let url {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// Shows the system dialog on first ask; later calls are no-ops and the
+    /// user must flip the switch in System Settings instead.
+    static func requestScreenRecordingPrompt() {
+        _ = CGRequestScreenCaptureAccess()
+    }
+
+    static func openScreenRecordingSettings() {
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
         if let url {
             NSWorkspace.shared.open(url)
         }
