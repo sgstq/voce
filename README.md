@@ -1,69 +1,118 @@
 <div align="center">
 
-<img src="Voce/Assets.xcassets/AppIcon.appiconset/icon_256.png" width="96" alt="Voce" />
+<img src="Voce/Assets.xcassets/AppIcon.appiconset/icon_256.png" width="104" alt="Voce" />
 
 # Voce
 
-**Push-to-talk dictation for macOS.**
-Hold a key, speak, and polished text lands at your cursor — in any app.
+### Speak. It types.
 
-![macOS](https://img.shields.io/badge/macOS-26%2B-000000?logo=apple&logoColor=white)
-[![Download](https://img.shields.io/github/v/release/sgstq/voce?label=download&color=2ea043)](https://github.com/sgstq/voce/releases/latest)
+Hold a key, say what you mean, and clean, punctuated text appears at your cursor — in any app on your Mac.
 
-<br />
+[![Download Voce](https://img.shields.io/badge/Download_for_macOS-8062B2?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/sgstq/voce/releases/latest)
 
-[**⬇ Download Voce**](https://github.com/sgstq/voce/releases/latest)<br />
 <sub>Apple Silicon · macOS 26+</sub>
 
 <br />
 
-<img src="assets/typing.gif" width="760" alt="Dictating into an editor with Voce" />
+<img src="assets/screenshots/hero.png" width="820" alt="Voce's capsule showing a live transcript while dictating into a document" />
 
 </div>
 
-## Features
+<br />
 
-- **Talk anywhere** — hold your hotkey, speak, release. Text appears wherever your cursor is: editors, chat, browsers, terminals.
-- **Polished, not raw** — a cleanup pass fixes grammar, punctuation, and filler words, and matches the style of the text already around your cursor.
-- **Fast** — streaming transcription; your words show up in about a second.
-- **Quiet overlay** — a small black capsule at the bottom of the screen whose bars follow your voice. It never steals focus and disappears when you're done. The live transcript is one switch away in Settings.
-- **Multilingual** — detects the spoken language automatically and keeps mid-sentence language switches intact.
-- **Private by choice** — run the cleanup fully on-device with Apple Intelligence: no API key, no network. Cloud providers (OpenAI, Groq, Cerebras) are optional.
-- **Clipboard-safe** — text is typed as real keystrokes, so your clipboard and its history are never touched.
-- **Out of the way** — lives in the menu bar with no Dock icon, launches at login, and uses near-zero CPU while idle.
+## Typing is slow. Talking isn't.
 
-## Install
+Voce lives in your menu bar and waits. When you want to write — an email, a Slack reply, a commit message, a prompt — hold your key and talk. Let go, and your words land exactly where your cursor is, with the *ums* gone and the commas in place.
 
-**[⬇ Download the latest release](https://github.com/sgstq/voce/releases/latest)** — open the DMG and drag **Voce** into Applications.
+No window to switch to. No copy and paste. It just types.
 
-Or build from source (requires Xcode):
+<table>
+<tr>
+<td width="33%" valign="top">
 
-```bash
-scripts/install.sh          # builds and installs Voce to /Applications
-scripts/package.sh 0.1.0    # or build a drag-to-install DMG in dist/
-```
+**Works everywhere**<br />
+Mail, Slack, Notes, your browser, your editor, your terminal. If you can type there, you can talk there.
 
-## Setup
+</td>
+<td width="33%" valign="top">
 
-On first launch:
+**Sounds like you, only tidier**<br />
+Voce drops filler words, fixes punctuation and matches the tone of the text around your cursor.
 
-1. A welcome window walks you through **Microphone** and **Accessibility** access. Accessibility lets Voce type into other apps and read the text around your cursor.
-2. Pick how to transcribe: on this Mac (no key), or paste an OpenAI or Deepgram key (kept in the macOS Keychain).
-3. Hold your **push-to-talk key** (F5 by default, change it in Settings → General), speak, release.
+</td>
+<td width="33%" valign="top">
 
-<div align="center">
-  <img src="assets/settings.gif" width="480" alt="Voce settings" />
-</div>
+**Private when you want it**<br />
+Transcribe and polish entirely on your Mac with Apple's on-device models. No account, nothing leaves your computer.
+
+</td>
+</tr>
+</table>
+
+## How it works
+
+1. **Hold** your push-to-talk key (<kbd>F5</kbd> by default, or pick your own).
+2. **Speak.** A small capsule at the bottom of the screen moves with your voice.
+3. **Release.** Your text appears at the cursor in about a second.
+
+That's the whole app.
+
+## Made for macOS
+
+Voce looks and feels like part of your Mac: a native settings window, light and dark mode, and a quiet capsule that never steals focus and disappears the moment you let go.
+
+<table>
+<tr>
+<td width="58%" valign="top">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/settings-general-dark.png" />
+  <img src="assets/screenshots/settings-general-light.png" alt="Voce settings" />
+</picture>
+</td>
+<td width="42%" valign="top">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/onboarding-dark.png" />
+  <img src="assets/screenshots/onboarding-light.png" alt="Voce welcome window" />
+</picture>
+</td>
+</tr>
+<tr>
+<td align="center"><sub>Settings, in the style of System Settings</sub></td>
+<td align="center"><sub>A short welcome gets you set up</sub></td>
+</tr>
+</table>
+
+## Everything else you'd want
+
+- **Multilingual.** Detects the language you're speaking, even if you switch mid-sentence.
+- **Context-aware.** Reads the text around your cursor, and optionally the active window, so names and terms come out right.
+- **Your choice of engine.** On-device, or OpenAI and Deepgram for the fastest streaming. Polish with Apple Intelligence, OpenAI, Groq or Cerebras.
+- **Clipboard-safe.** Text is typed as real keystrokes, so your clipboard is never touched.
+- **Light on your Mac.** No Dock icon, optional launch at login, and almost no CPU while idle.
 
 ## Privacy
 
-Voce stores no recordings or transcripts. Audio goes to your chosen provider only for the moment it's transcribed, and the cleanup pass can run entirely on-device with Apple Intelligence — no key, no network. Your API keys stay in the macOS Keychain.
+Voce keeps no recordings and no transcripts. It listens only while you hold your key. If you use a cloud provider, audio goes to that provider only while it is being transcribed. Your API keys stay in the macOS Keychain.
 
-## Requirements
+## Install
 
-- macOS 26 or later, Apple Silicon
-- Microphone and Accessibility permissions
-- An OpenAI API key for transcription (the on-device cleanup needs no key)
+**[Download the latest release](https://github.com/sgstq/voce/releases/latest)**, open the DMG and drag **Voce** into Applications. On first launch, a short welcome window asks for Microphone and Accessibility access, and you're ready.
+
+Requires macOS 26 or later on Apple Silicon.
+
+<details>
+<summary>Build from source</summary>
+
+<br />
+
+Requires Xcode and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+
+```bash
+scripts/install.sh          # build and install to /Applications
+scripts/package.sh 0.1.0    # or build a drag-to-install DMG in dist/
+```
+
+</details>
 
 ---
 

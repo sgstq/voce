@@ -115,7 +115,7 @@ struct OnboardingView: View {
         } else {
             HStack(spacing: 8) {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+                    .foregroundStyle(Color.success)
                 Text("You're set. Hold")
                 KeyCap(label: appState.config.hotkey.displayName)
                 Text("anywhere and speak.")

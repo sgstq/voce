@@ -26,7 +26,7 @@ What to avoid:
   - There are no text labels for state.
   - The live transcript is opt-in (Settings → General). When it is on, it appears as one line with the head truncated, in a fixed-width strip, so the capsule doesn't jitter.
 - **Motion:** springs only. The capsule rises from 60% scale on entry and fades out in about 150ms on exit. Only size changes animate; per-word text updates never do.
-- **Colour:** the overlay is monochrome. The accent defaults to the macOS system accent. The optional accents are the system colours, and they tint controls only.
+- **Colour:** the overlay is monochrome. The accent defaults to the macOS system accent. The optional accents are muted versions of the system colours, softer still in dark mode, and they tint controls only. The Settings sidebar keeps the native system-accent highlight.
 - **Windows:** native SwiftUI grouped `Form`s everywhere.
   - Settings is a sidebar window like System Settings: General, Transcription, Polish, Context, Permissions.
   - Advanced fields (model ids, latency) sit in their own section.
