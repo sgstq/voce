@@ -5,11 +5,36 @@ extension AccentColor {
     var color: Color? {
         switch self {
         case .system: nil
-        case .violet: .purple
-        case .blue: .blue
-        case .green: .green
-        case .orange: .orange
+        case .violet: .muted(hue: 262, light: (0.45, 0.70), dark: (0.36, 0.72))
+        case .blue: .muted(hue: 214, light: (0.62, 0.74), dark: (0.48, 0.76))
+        case .green: .success
+        case .orange: .muted(hue: 28, light: (0.62, 0.84), dark: (0.50, 0.82))
         }
+    }
+}
+
+extension Color {
+    /// Granted/saved ticks; the same muted green as the green accent.
+    static let success = Color.muted(hue: 150, light: (0.50, 0.60), dark: (0.40, 0.64))
+
+    /// A soft colour with its own light and dark variants. The system
+    /// colours are tuned to pop; against a dark window they glare, so the
+    /// dark variant is less saturated.
+    static func muted(
+        hue: Double,
+        light: (saturation: Double, brightness: Double),
+        dark: (saturation: Double, brightness: Double)
+    ) -> Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            let variant = isDark ? dark : light
+            return NSColor(
+                hue: hue / 360,
+                saturation: variant.saturation,
+                brightness: variant.brightness,
+                alpha: 1
+            )
+        })
     }
 }
 
@@ -102,7 +127,7 @@ struct APIKeyField: View {
                     Button("Save") { commit() }
                 } else if !stored.isEmpty {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Color.success)
                         .help("Saved in Keychain")
                 }
             }
@@ -143,7 +168,7 @@ struct PermissionRow: View {
             if isGranted {
                 HStack(spacing: 5) {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Color.success)
                     Text("Allowed")
                         .foregroundStyle(.secondary)
                 }
@@ -193,6 +218,7 @@ struct AccentPicker: View {
                     center: .center
                 )
             )
+            .saturation(0.6)
         }
     }
 }

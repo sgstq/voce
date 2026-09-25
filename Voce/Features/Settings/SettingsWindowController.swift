@@ -15,6 +15,8 @@ final class SettingsWindowController {
             let window = NSWindow(contentViewController: hostingController)
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
             window.toolbarStyle = .unified
+            // The bridged title only arrives on a pane change; seed the first.
+            window.title = SettingsPane.general.title
             window.setContentSize(NSSize(width: 720, height: 540))
             window.contentMinSize = NSSize(width: 640, height: 440)
             window.isReleasedWhenClosed = false
