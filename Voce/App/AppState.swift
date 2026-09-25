@@ -12,12 +12,15 @@ final class AppState: ObservableObject {
     @Published private(set) var keychainMessage: String?
     @Published private(set) var launchAtLogin = SMAppService.mainApp.status == .enabled
     @Published private(set) var launchAtLoginNotice: String?
+    /// The selected backend needs an API key and none is stored.
+    @Published private(set) var transcriptionKeyMissing = false
 
     let dictation: DictationCoordinator
 
     private let configStore: ConfigStore
     private let keychainStore: KeychainStore
     private let settingsWindowController = SettingsWindowController()
+    private let onboardingWindowController = OnboardingWindowController()
     private var dictationChanges: AnyCancellable?
 
     init(
@@ -59,19 +62,35 @@ final class AppState: ObservableObject {
         }
 
         dictation.startHotkey()
+        refreshKeyState()
+
+        // NSApp is only safe to touch once the app has finished launching.
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.applyAppearance()
+            if self.needsSetup {
+                self.openOnboarding()
+            }
+        }
     }
 
     /// Latest config, readable from the coordinator's escaping provider.
     private let configBox: ConfigBox
 
+    /// Permissions or the transcription key still stand between the user
+    /// and a first dictation.
+    var needsSetup: Bool {
+        !permissionState.isReadyForPhaseZero || transcriptionKeyMissing
+    }
+
     var menuBarSystemImage: String {
         switch dictation.phase {
         case .recording:
-            return "record.circle.fill"
+            return "waveform.circle.fill"
         case .finalizing, .refining:
             return "ellipsis.circle"
         case .idle:
-            return permissionState.isReadyForPhaseZero ? "waveform.circle" : "waveform.circle.fill"
+            return needsSetup ? "waveform.badge.exclamationmark" : "waveform"
         }
     }
 
@@ -81,7 +100,7 @@ final class AppState: ObservableObject {
         }
         switch dictation.phase {
         case .idle:
-            return "Hold \(config.hotkey.displayName) to dictate"
+            return needsSetup ? "Voce needs a few things to start" : "Hold \(config.hotkey.displayName) to dictate"
         case .recording:
             return "Listening…"
         case .finalizing:
@@ -95,14 +114,46 @@ final class AppState: ObservableObject {
         settingsWindowController.show(appState: self)
     }
 
+    func openOnboarding() {
+        onboardingWindowController.show(appState: self)
+    }
+
     func updateConfig(_ update: (inout AppConfig) -> Void) {
-        let previousHotkey = config.hotkey
+        let previous = config
         update(&config)
         configBox.value = config
         saveConfig()
-        if config.hotkey != previousHotkey {
+        if config.hotkey != previous.hotkey {
             dictation.restartHotkeyIfNeeded()
         }
+        if config.transcriptionBackend != previous.transcriptionBackend {
+            refreshKeyState()
+        }
+        if config.theme != previous.theme {
+            applyAppearance()
+        }
+    }
+
+    /// Settings and onboarding follow the theme; the dictation overlay is
+    /// always dark, like a HUD.
+    private func applyAppearance() {
+        switch config.theme {
+        case .system:
+            NSApp.appearance = nil
+        case .light:
+            NSApp.appearance = NSAppearance(named: .aqua)
+        case .dark:
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
+    }
+
+    private func refreshKeyState() {
+        guard let account = config.transcriptionBackend.keychainAccount else {
+            transcriptionKeyMissing = false
+            return
+        }
+        let stored = (try? keychainStore.read(account: account)) ?? nil
+        transcriptionKeyMissing = stored?.isEmpty ?? true
     }
 
     func saveConfig() {
@@ -115,7 +166,10 @@ final class AppState: ObservableObject {
     }
 
     func refreshPermissions() {
-        permissionState = PermissionState.current()
+        let current = PermissionState.current()
+        if current != permissionState {
+            permissionState = current
+        }
         if permissionState.accessibilityTrusted, !dictation.isHotkeyRunning {
             dictation.restartHotkeyIfNeeded()
         }
@@ -127,6 +181,10 @@ final class AppState: ObservableObject {
                 self?.refreshPermissions()
             }
         }
+    }
+
+    func openMicrophoneSettings() {
+        PermissionState.openMicrophoneSettings()
     }
 
     func requestAccessibilityAccess() {
@@ -169,6 +227,7 @@ final class AppState: ObservableObject {
         } catch {
             keychainMessage = error.localizedDescription
         }
+        refreshKeyState()
     }
 
     /// State of the on-device speech model for the configured language.

@@ -26,7 +26,7 @@ Hold a key, speak, and polished text lands at your cursor — in any app.
 - **Talk anywhere** — hold your hotkey, speak, release. Text appears wherever your cursor is: editors, chat, browsers, terminals.
 - **Polished, not raw** — a cleanup pass fixes grammar, punctuation, and filler words, and matches the style of the text already around your cursor.
 - **Fast** — streaming transcription; your words show up in about a second.
-- **Live overlay** — a floating waveform and words that appear as you speak. It never steals focus and disappears when you're done.
+- **Quiet overlay** — a small black capsule at the bottom of the screen whose bars follow your voice. It never steals focus and disappears when you're done. The live transcript is one switch away in Settings.
 - **Multilingual** — detects the spoken language automatically and keeps mid-sentence language switches intact.
 - **Private by choice** — run the cleanup fully on-device with Apple Intelligence: no API key, no network. Cloud providers (OpenAI, Groq, Cerebras) are optional.
 - **Clipboard-safe** — text is typed as real keystrokes, so your clipboard and its history are never touched.
@@ -47,10 +47,9 @@ scripts/package.sh 0.1.0    # or build a drag-to-install DMG in dist/
 
 On first launch:
 
-1. Grant **Microphone** and **Accessibility** in System Settings → Privacy & Security. Accessibility lets Voce type into other apps and read the text around your cursor.
-2. Open **Settings**, pick a transcription backend, and paste your OpenAI API key (kept in the macOS Keychain).
-3. Record a **push-to-talk key** — function keys and modifiers (Fn, ⌥, ⌘…) work best.
-4. Hold it, speak, release.
+1. A welcome window walks you through **Microphone** and **Accessibility** access. Accessibility lets Voce type into other apps and read the text around your cursor.
+2. Pick how to transcribe: on this Mac (no key), or paste an OpenAI or Deepgram key (kept in the macOS Keychain).
+3. Hold your **push-to-talk key** (F5 by default, change it in Settings → General), speak, release.
 
 <div align="center">
   <img src="assets/settings.gif" width="480" alt="Voce settings" />

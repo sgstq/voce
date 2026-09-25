@@ -22,6 +22,20 @@ struct FocusContext: Equatable, Sendable {
     var hasSurroundingText: Bool {
         !textBeforeCursor.isEmpty || !textAfterCursor.isEmpty || !selectedText.isEmpty
     }
+
+    /// Folds the active window's recognized text in as the screen-context
+    /// mode allows: distilled terms only, or the full text with secrets
+    /// redacted.
+    mutating func addScreenText(_ windowText: String, mode: ScreenContextMode) {
+        switch mode {
+        case .termsOnly:
+            screenVocabulary = VocabularyDistiller.distill(from: windowText)
+        case .fullText:
+            screenText = VocabularyDistiller.redactSecrets(in: windowText)
+        case .off:
+            break
+        }
+    }
 }
 
 @MainActor

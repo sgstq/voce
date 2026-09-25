@@ -20,6 +20,7 @@ Port the refinement prompt + context-rules; `AXUIElement` surrounding-text + act
 
 ### Phase 3 — Design polish (stop being ugly)
 Implement the design system from `design/tokens.css`: the live recorder (waveform, pulse, shimmer "polishing" state, field-anchored position), the full settings UI from the mockups, light/dark + accent.
+_Superseded by `docs/DESIGN.md`_: market research pointed to a small HUD capsule plus native System Settings-style windows, not the Cadence mockups.
 
 ### Phase 4 — Local + ship
 Local speech fallback (prefer macOS 26 `SpeechAnalyzer` / `SpeechTranscriber`; use whisper.cpp only if Apple Speech quality, language coverage, or availability is insufficient); diagnostics; launch-at-login; notarized DMG in CI.

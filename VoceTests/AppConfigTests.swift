@@ -14,6 +14,8 @@ final class AppConfigTests: XCTestCase {
         XCTAssertTrue(config.refinementEnabled)
         XCTAssertTrue(config.captureContext)
         XCTAssertEqual(config.screenContext, .off)
+        XCTAssertFalse(config.showLiveTranscript)
+        XCTAssertEqual(config.accent, .system)
     }
 
     func testConfigStoreRoundTripsJSON() throws {
@@ -30,6 +32,8 @@ final class AppConfigTests: XCTestCase {
         config.insertionMode = .keystrokes
         config.realtimeDelay = .medium
         config.screenContext = .termsOnly
+        config.showLiveTranscript = true
+        config.accent = .green
 
         try store.save(config)
 
@@ -62,6 +66,9 @@ final class AppConfigTests: XCTestCase {
         XCTAssertEqual(config.refinementProvider, .openAI)
         XCTAssertEqual(config.deepgramModel, "nova-3")
         XCTAssertEqual(config.screenContext, .off)
+        XCTAssertFalse(config.showLiveTranscript)
+        // A stored accent is kept even though the default is now System.
+        XCTAssertEqual(config.accent, .violet)
     }
 
     func testDecodingToleratesMissingKeys() throws {
