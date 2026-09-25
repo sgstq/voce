@@ -46,6 +46,7 @@ final class DictationCoordinator: ObservableObject {
     private var sampleCount = 0
     private var sumSquares = 0.0
     private var releaseContext: FocusContext?
+    private var screenContextTask: Task<String?, Never>?
 
     init(
         configProvider: @escaping @MainActor () -> AppConfig,
@@ -152,6 +153,13 @@ final class DictationCoordinator: ObservableObject {
         // handshakes / model loading never sit inside the "Polishing…" wait.
         if config.refinementEnabled {
             refiner.prewarm(provider: config.refinementProvider)
+        }
+
+        // Screen context rides the same trick: capture + OCR run while the
+        // user speaks, so the text is ready by refinement time (the service
+        // caps itself and returns nil when late or unavailable).
+        if config.refinementEnabled, config.screenContext != .off {
+            screenContextTask = Task { await ScreenContextService.captureWindowText() }
         }
 
         Task { await session.start() }
@@ -291,9 +299,15 @@ final class DictationCoordinator: ObservableObject {
         let config = configProvider()
         let context = releaseContext ?? FocusContext()
 
+        // Detach the screen-context capture before cleanup cancels it — the
+        // refine path below is its consumer.
+        let screenTask = screenContextTask
+        screenContextTask = nil
+
         cleanupSession()
 
         guard !rawText.isEmpty else {
+            screenTask?.cancel()
             overlay.hide()
             phase = .idle
             return
@@ -306,6 +320,7 @@ final class DictationCoordinator: ObservableObject {
             if config.refinementEnabled, cloudKeyMissing {
                 Self.log.warning("refinement skipped: no API key for \(provider.rawValue, privacy: .public)")
             }
+            screenTask?.cancel()
             insertAfterGuard(rawText, mode: config.insertionMode, context: context)
             return
         }
@@ -313,6 +328,21 @@ final class DictationCoordinator: ObservableObject {
         overlay.model.phase = .refining
         let refiner = self.refiner
         Task { [weak self] in
+            var context = context
+            if config.screenContext != .off, let windowText = await screenTask?.value {
+                switch config.screenContext {
+                case .termsOnly:
+                    context.screenVocabulary = VocabularyDistiller.distill(from: windowText)
+                case .fullText:
+                    context.screenText = VocabularyDistiller.redactSecrets(in: windowText)
+                case .off:
+                    break
+                }
+                Self.log.notice(
+                    "screen context: mode=\(config.screenContext.rawValue, privacy: .public) terms=\(context.screenVocabulary.count) text.len=\(context.screenText.count)"
+                )
+            }
+
             var finalText = rawText
             do {
                 finalText = try await refiner.refine(
@@ -379,6 +409,10 @@ final class DictationCoordinator: ObservableObject {
         eventTask?.cancel()
         eventTask = nil
         session = nil
+        // Only set when a dictation aborted before refinement claimed it —
+        // finishDictation detaches the task before cleanup runs.
+        screenContextTask?.cancel()
+        screenContextTask = nil
     }
 
     private func showTransientError(_ message: String) {

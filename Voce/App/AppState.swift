@@ -139,6 +139,16 @@ final class AppState: ObservableObject {
         refreshPermissions()
     }
 
+    func requestScreenRecordingAccess() {
+        PermissionState.requestScreenRecordingPrompt()
+        refreshPermissions()
+    }
+
+    func openScreenRecordingSettings() {
+        PermissionState.openScreenRecordingSettings()
+        refreshPermissions()
+    }
+
     func loadTranscriptionKey(for backend: TranscriptionBackend) -> String {
         guard let account = backend.keychainAccount else { return "" }
         do {

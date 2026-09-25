@@ -61,6 +61,8 @@ targets:
       - sdk: AVFoundation.framework
       - sdk: ApplicationServices.framework
       - sdk: Security.framework
+      - sdk: ScreenCaptureKit.framework
+      - sdk: Vision.framework
 
   VoceTests:
     type: bundle.unit-test

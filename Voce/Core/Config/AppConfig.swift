@@ -14,7 +14,7 @@ struct AppConfig: Codable, Equatable {
     var theme: AppTheme
     var accent: AccentColor
     var captureContext: Bool
-    var captureScreenshots: Bool
+    var screenContext: ScreenContextMode
 
     init(
         hotkey: HotkeySpec = .defaultPushToTalk,
@@ -30,7 +30,7 @@ struct AppConfig: Codable, Equatable {
         theme: AppTheme = .system,
         accent: AccentColor = .violet,
         captureContext: Bool = true,
-        captureScreenshots: Bool = false
+        screenContext: ScreenContextMode = .off
     ) {
         self.hotkey = hotkey
         self.language = language
@@ -45,13 +45,13 @@ struct AppConfig: Codable, Equatable {
         self.theme = theme
         self.accent = accent
         self.captureContext = captureContext
-        self.captureScreenshots = captureScreenshots
+        self.screenContext = screenContext
     }
 
     private enum CodingKeys: String, CodingKey {
         case hotkey, language, insertionMode, transcriptionBackend
         case realtimeModel, realtimeDelay, deepgramModel, refinementEnabled, refinementProvider, refinementModel
-        case theme, accent, captureContext, captureScreenshots
+        case theme, accent, captureContext, screenContext
     }
 
     /// Tolerant decoding: every missing key falls back to its default, so
@@ -72,7 +72,41 @@ struct AppConfig: Codable, Equatable {
         self.theme = try container.decodeIfPresent(AppTheme.self, forKey: .theme) ?? defaults.theme
         self.accent = try container.decodeIfPresent(AccentColor.self, forKey: .accent) ?? defaults.accent
         self.captureContext = try container.decodeIfPresent(Bool.self, forKey: .captureContext) ?? defaults.captureContext
-        self.captureScreenshots = try container.decodeIfPresent(Bool.self, forKey: .captureScreenshots) ?? defaults.captureScreenshots
+        self.screenContext = try container.decodeIfPresent(ScreenContextMode.self, forKey: .screenContext) ?? defaults.screenContext
+    }
+}
+
+/// How much of the active window may inform refinement. The privacy axis is
+/// how much screen content leaves the Mac: nothing, ~25 distilled spellings,
+/// or the recognized window text. The window image itself never leaves —
+/// OCR runs on-device either way.
+enum ScreenContextMode: String, Codable, CaseIterable, Identifiable {
+    case off
+    case termsOnly
+    case fullText
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .off:
+            "Off"
+        case .termsOnly:
+            "Terms only"
+        case .fullText:
+            "Full window text"
+        }
+    }
+
+    var caption: String {
+        switch self {
+        case .off:
+            "The screen is never read."
+        case .termsOnly:
+            "The active window is read and distilled on this Mac into up to 25 exact spellings; only those terms join the refinement prompt."
+        case .fullText:
+            "The recognized window text joins the refinement prompt — strongest corrections, but on-screen content is sent to your refinement provider."
+        }
     }
 }
 

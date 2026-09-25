@@ -13,6 +13,11 @@ struct FocusContext: Equatable, Sendable {
     var selectedText = ""
     var textBeforeCursor = ""
     var textAfterCursor = ""
+    /// Distilled exact spellings from the active window (terms-only screen
+    /// context); at most one of these two carries data per dictation.
+    var screenVocabulary: [String] = []
+    /// Recognized window text (full-text screen context), secrets redacted.
+    var screenText = ""
 
     var hasSurroundingText: Bool {
         !textBeforeCursor.isEmpty || !textAfterCursor.isEmpty || !selectedText.isEmpty
