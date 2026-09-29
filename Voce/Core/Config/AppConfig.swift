@@ -8,6 +8,7 @@ struct AppConfig: Codable, Equatable {
     var realtimeModel: String
     var realtimeDelay: RealtimeDelay
     var deepgramModel: String
+    var openRouterModel: String
     var refinementEnabled: Bool
     var refinementProvider: RefinementProvider
     var refinementModel: String
@@ -25,6 +26,7 @@ struct AppConfig: Codable, Equatable {
         realtimeModel: String = "gpt-realtime-whisper",
         realtimeDelay: RealtimeDelay = .low,
         deepgramModel: String = "nova-3",
+        openRouterModel: String = "microsoft/mai-transcribe-2",
         refinementEnabled: Bool = true,
         refinementProvider: RefinementProvider = .openAI,
         refinementModel: String = "gpt-5-mini",
@@ -41,6 +43,7 @@ struct AppConfig: Codable, Equatable {
         self.realtimeModel = realtimeModel
         self.realtimeDelay = realtimeDelay
         self.deepgramModel = deepgramModel
+        self.openRouterModel = openRouterModel
         self.refinementEnabled = refinementEnabled
         self.refinementProvider = refinementProvider
         self.refinementModel = refinementModel
@@ -53,7 +56,8 @@ struct AppConfig: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case hotkey, language, insertionMode, transcriptionBackend
-        case realtimeModel, realtimeDelay, deepgramModel, refinementEnabled, refinementProvider, refinementModel
+        case realtimeModel, realtimeDelay, deepgramModel, openRouterModel
+        case refinementEnabled, refinementProvider, refinementModel
         case theme, accent, captureContext, screenContext, showLiveTranscript
     }
 
@@ -69,6 +73,7 @@ struct AppConfig: Codable, Equatable {
         self.realtimeModel = try container.decodeIfPresent(String.self, forKey: .realtimeModel) ?? defaults.realtimeModel
         self.realtimeDelay = try container.decodeIfPresent(RealtimeDelay.self, forKey: .realtimeDelay) ?? defaults.realtimeDelay
         self.deepgramModel = try container.decodeIfPresent(String.self, forKey: .deepgramModel) ?? defaults.deepgramModel
+        self.openRouterModel = try container.decodeIfPresent(String.self, forKey: .openRouterModel) ?? defaults.openRouterModel
         self.refinementEnabled = try container.decodeIfPresent(Bool.self, forKey: .refinementEnabled) ?? defaults.refinementEnabled
         self.refinementProvider = try container.decodeIfPresent(RefinementProvider.self, forKey: .refinementProvider) ?? defaults.refinementProvider
         self.refinementModel = try container.decodeIfPresent(String.self, forKey: .refinementModel) ?? defaults.refinementModel
@@ -139,6 +144,7 @@ enum InsertionMode: String, Codable, CaseIterable, Identifiable {
 enum TranscriptionBackend: String, Codable, CaseIterable, Identifiable {
     case openAIRealtime
     case deepgram
+    case openRouter
     case appleOnDevice
 
     var id: String { rawValue }
@@ -149,6 +155,8 @@ enum TranscriptionBackend: String, Codable, CaseIterable, Identifiable {
             "OpenAI Realtime"
         case .deepgram:
             "Deepgram"
+        case .openRouter:
+            "OpenRouter"
         case .appleOnDevice:
             "Apple on-device"
         }
@@ -161,6 +169,8 @@ enum TranscriptionBackend: String, Codable, CaseIterable, Identifiable {
             "OpenAI"
         case .deepgram:
             "Deepgram"
+        case .openRouter:
+            "OpenRouter"
         case .appleOnDevice:
             "Apple"
         }
@@ -174,9 +184,17 @@ enum TranscriptionBackend: String, Codable, CaseIterable, Identifiable {
             "openai-api-key"
         case .deepgram:
             "deepgram-api-key"
+        case .openRouter:
+            "openrouter-api-key"
         case .appleOnDevice:
             nil
         }
+    }
+
+    /// File-based backends upload the whole recording after release, so
+    /// finalizing takes longer the longer the user spoke.
+    var uploadsOnRelease: Bool {
+        self == .openRouter
     }
 }
 
