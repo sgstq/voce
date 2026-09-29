@@ -65,6 +65,7 @@ final class AppConfigTests: XCTestCase {
         XCTAssertEqual(config.refinementModel, "gpt-5-mini")
         XCTAssertEqual(config.refinementProvider, .openAI)
         XCTAssertEqual(config.deepgramModel, "nova-3")
+        XCTAssertEqual(config.openRouterModel, "microsoft/mai-transcribe-2")
         XCTAssertEqual(config.screenContext, .off)
         XCTAssertFalse(config.showLiveTranscript)
         // A stored accent is kept even though the default is now System.

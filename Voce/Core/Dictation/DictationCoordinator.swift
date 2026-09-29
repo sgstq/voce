@@ -193,8 +193,10 @@ final class DictationCoordinator: ObservableObject {
 
         Task { await session.commit() }
 
+        // File-based backends upload after release: add half a second per spoken second.
+        let uploadAllowance = configProvider().transcriptionBackend.uploadsOnRelease ? duration / 2 : 0
         timeoutTask = Task { [weak self] in
-            try? await Task.sleep(for: Self.completionTimeout)
+            try? await Task.sleep(for: Self.completionTimeout + .seconds(uploadAllowance))
             guard !Task.isCancelled, self?.phase == .finalizing else { return }
             self?.finishWithPendingTranscript(orFail: "Timed out waiting for the transcript")
         }

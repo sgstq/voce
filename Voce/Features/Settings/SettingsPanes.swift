@@ -100,6 +100,8 @@ struct TranscriptionPane: View {
                     }
                 case .deepgram:
                     TextField("Model", text: appState.binding(\.deepgramModel))
+                case .openRouter:
+                    TextField("Model", text: appState.binding(\.openRouterModel))
                 case .appleOnDevice:
                     LabeledContent("Model", value: "Apple SpeechAnalyzer")
                 }

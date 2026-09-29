@@ -18,6 +18,12 @@ extension TranscriptionBackend {
                 model: config.deepgramModel,
                 language: config.language
             )
+        case .openRouter:
+            OpenRouterTranscriptionSession(
+                apiKey: apiKey,
+                model: config.openRouterModel,
+                language: config.language
+            )
         case .appleOnDevice:
             AppleTranscriptionSession(language: config.language)
         }

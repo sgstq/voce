@@ -146,6 +146,8 @@ struct OnboardingView: View {
             "Fastest and most accurate. Your key stays in the macOS Keychain."
         case .deepgram:
             "Streaming transcription from Deepgram. Your key stays in the macOS Keychain."
+        case .openRouter:
+            "Sends each recording when you release the key, using Microsoft MAI-Transcribe-2 by default. Your key stays in the macOS Keychain."
         case .appleOnDevice:
             "Runs entirely on this Mac — no account, nothing leaves your computer."
         }
