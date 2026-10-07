@@ -80,6 +80,25 @@ final class AppConfigTests: XCTestCase {
         XCTAssertTrue(config.refinementEnabled)
     }
 
+    func testDecodingReplacesRetiredRefinementModels() throws {
+        func decoded(_ provider: String, _ model: String) throws -> String {
+            let json = #"{"refinementProvider": "\#(provider)", "refinementModel": "\#(model)"}"#
+            return try JSONDecoder().decode(AppConfig.self, from: Data(json.utf8)).refinementModel
+        }
+
+        // Shut-down ids 404 on every call, so a saved one must not survive load.
+        XCTAssertEqual(try decoded("groq", "llama-3.3-70b-versatile"), "openai/gpt-oss-120b")
+        XCTAssertEqual(try decoded("groq", "llama-3.1-8b-instant"), "openai/gpt-oss-20b")
+        XCTAssertEqual(try decoded("cerebras", "llama-3.3-70b"), "gpt-oss-120b")
+        // Retirement is per provider: the same id elsewhere is left alone.
+        XCTAssertEqual(try decoded("openAI", "llama-3.3-70b-versatile"), "llama-3.3-70b-versatile")
+        // A model the user chose stays untouched.
+        XCTAssertEqual(try decoded("groq", "openai/gpt-oss-20b"), "openai/gpt-oss-20b")
+        // A migrated id equals the provider default, so switching providers
+        // in Settings still swaps it out.
+        XCTAssertEqual(try decoded("groq", "llama-3.3-70b-versatile"), RefinementProvider.groq.defaultModel)
+    }
+
     func testConfigSerializationDoesNotContainAPIKeyFields() throws {
         let data = try JSONEncoder().encode(AppConfig())
         let json = String(decoding: data, as: UTF8.self)

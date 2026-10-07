@@ -34,9 +34,30 @@ enum RefinementProvider: String, Codable, CaseIterable, Identifiable, Sendable {
     var defaultModel: String {
         switch self {
         case .openAI: "gpt-5-mini"
-        case .groq: "llama-3.3-70b-versatile"
-        case .cerebras: "llama-3.3-70b"
+        case .groq: "openai/gpt-oss-120b"
+        case .cerebras: "gpt-oss-120b"
         case .appleOnDevice: ""
+        }
+    }
+
+    /// Model ids the provider has shut down, mapped to its recommended
+    /// replacement. Saved configs keep a model id forever, so a retired id
+    /// must be rewritten on load or refinement 404s on every dictation.
+    /// Groq: https://console.groq.com/docs/deprecations (Llama shut down
+    /// 2026-08-16 for non-enterprise tiers). Cerebras dropped Llama 3.3 70B
+    /// from its catalog.
+    func replacement(forRetiredModel model: String) -> String? {
+        switch self {
+        case .groq:
+            switch model {
+            case "llama-3.3-70b-versatile": "openai/gpt-oss-120b"
+            case "llama-3.1-8b-instant": "openai/gpt-oss-20b"
+            default: nil
+            }
+        case .cerebras:
+            model == "llama-3.3-70b" ? "gpt-oss-120b" : nil
+        case .openAI, .appleOnDevice:
+            nil
         }
     }
 
