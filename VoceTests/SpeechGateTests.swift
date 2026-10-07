@@ -2,50 +2,38 @@ import XCTest
 @testable import Voce
 
 final class SpeechGateTests: XCTestCase {
-    /// One ~100 ms capture chunk at 24 kHz with the given normalized RMS.
-    private func chunk(rms: Double) -> (sumSquares: Double, sampleCount: Int) {
-        let samples = RealtimeProtocol.sampleRate / 10
-        return (rms * rms * Double(samples), samples)
-    }
-
-    private func gate(_ levels: [Double]) -> SpeechGate {
+    /// A hold of `seconds` at 24 kHz; loudness doesn't matter to the verdict.
+    private func gate(seconds: Double) -> SpeechGate {
         var gate = SpeechGate()
-        for level in levels {
-            gate.add(chunk(rms: level))
-        }
+        let samples = Int(seconds * Double(RealtimeProtocol.sampleRate))
+        gate.add((sumSquares: 0.0001 * Double(samples), sampleCount: samples))
         return gate
     }
 
-    func testLiveTextKeepsQuietRecording() {
-        // Logged 2026-10-06: 15.09 s at rms 0.0034 was dropped while words
-        // were already on screen.
-        let quiet = gate(Array(repeating: 0.0034, count: 151))
-        XCTAssertEqual(quiet.verdict(heardLiveText: true), .speech)
-        XCTAssertEqual(quiet.verdict(heardLiveText: false), .silent)
+    func testLiveTextKeepsHoldTheDetectorMissed() {
+        XCTAssertEqual(gate(seconds: 1.0).verdict(heardLiveText: true, voiceDetected: false), .speech)
     }
 
-    func testPausesDoNotDiluteSpeech() {
-        // 30% speech, 70% pauses: the whole-hold average lands under the
-        // old 0.005 gate, but the voiced chunks still count.
-        let levels = (0..<466).map { $0 % 10 < 3 ? 0.008 : 0.001 }
-        let pausy = gate(levels)
-        XCTAssertLessThan(pausy.averageRMS, 0.005)
-        XCTAssertEqual(pausy.verdict(heardLiveText: false), .speech)
+    func testDetectedVoiceKeepsHoldWithoutLiveText() {
+        // A one-second "yes please" ends before any live text arrives.
+        XCTAssertEqual(gate(seconds: 1.0).verdict(heardLiveText: false, voiceDetected: true), .speech)
     }
 
-    func testQuietHoldIsSilent() {
-        // Logged 2026-10-05: 0.69 s at rms 0.0007.
-        XCTAssertEqual(gate(Array(repeating: 0.0007, count: 7)).verdict(heardLiveText: false), .silent)
-    }
-
-    func testSingleKeyClickIsNotSpeech() {
-        var levels = Array(repeating: 0.0005, count: 10)
-        levels[9] = 0.05
-        XCTAssertEqual(gate(levels).verdict(heardLiveText: false), .silent)
+    func testHoldWithoutVoiceOrLiveTextIsSilent() {
+        XCTAssertEqual(gate(seconds: 2.0).verdict(heardLiveText: false, voiceDetected: false), .silent)
     }
 
     func testTapShorterThanMinimumIsTooShort() {
-        XCTAssertEqual(gate([0.02]).verdict(heardLiveText: false), .tooShort)
-        XCTAssertEqual(SpeechGate().verdict(heardLiveText: false), .tooShort)
+        XCTAssertEqual(gate(seconds: 0.1).verdict(heardLiveText: true, voiceDetected: true), .tooShort)
+        XCTAssertEqual(SpeechGate().verdict(heardLiveText: false, voiceDetected: false), .tooShort)
+    }
+
+    func testSilenceHallucinationsMatchWholeTranscriptOnly() {
+        XCTAssertTrue(SpeechGate.isSilenceHallucination("Thank you."))
+        XCTAssertTrue(SpeechGate.isSilenceHallucination("  Thanks for watching!  "))
+        XCTAssertTrue(SpeechGate.isSilenceHallucination("Продолжение следует..."))
+        XCTAssertTrue(SpeechGate.isSilenceHallucination("..."))
+        XCTAssertFalse(SpeechGate.isSilenceHallucination("Thank you for the review"))
+        XCTAssertFalse(SpeechGate.isSilenceHallucination("Yes please."))
     }
 }

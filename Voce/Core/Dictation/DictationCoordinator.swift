@@ -30,6 +30,7 @@ final class DictationCoordinator: ObservableObject {
     private let overlay = OverlayController()
     private let inserter = TextInserter()
     private let refiner = Refiner()
+    private let detector = VoiceActivityDetector()
     private let configProvider: @MainActor () -> AppConfig
     private let apiKeyProvider: @MainActor (TranscriptionBackend) throws -> String?
     private let refinementKeyProvider: @MainActor (RefinementProvider) throws -> String?
@@ -45,6 +46,10 @@ final class DictationCoordinator: ObservableObject {
     private var speech = SpeechGate()
     /// Set once the backend streams any non-blank live text.
     private var heardLiveText = false
+    /// The whole hold's mic audio, for the voice detector (and debug archive).
+    private var recordedPCM = Data()
+    /// Voice-detector result for this hold; nil until release (or if it failed).
+    private var voice: VoiceActivityDetector.Result?
     private var releaseContext: FocusContext?
     private var screenContextTask: Task<String?, Never>?
 
@@ -110,6 +115,8 @@ final class DictationCoordinator: ObservableObject {
         transcript = ""
         speech = SpeechGate()
         heardLiveText = false
+        recordedPCM = Data()
+        voice = nil
         releaseContext = nil
         errorDismissTask?.cancel()
 
@@ -154,6 +161,7 @@ final class DictationCoordinator: ObservableObject {
                 guard let self else { return }
                 let stats = AudioMath.rmsEnergy(pcm16: chunk)
                 self.speech.add(stats)
+                self.recordedPCM.append(chunk)
                 self.overlay.model.pushAudio(sumSquares: stats.sumSquares, sampleCount: stats.sampleCount)
                 await session.sendAudio(chunk)
             }
@@ -163,43 +171,6 @@ final class DictationCoordinator: ObservableObject {
             for await event in session.events {
                 self?.handle(event)
             }
-        }
-    }
-
-    private func endDictation() {
-        guard phase == .recording, let session else {
-            return
-        }
-
-        audio.stop()
-
-        let duration = speech.duration
-        let verdict = speech.verdict(heardLiveText: heardLiveText)
-        let stats = String(format: "duration=%.2fs rms=%.4f voiced=%.2fs", duration, speech.averageRMS, speech.voicedDuration)
-        Self.log.notice("end: \(stats, privacy: .public) liveText=\(self.heardLiveText) verdict=\(String(describing: verdict), privacy: .public)")
-        guard verdict == .speech else {
-            // An accidental tap vanishes; a real hold always says why nothing was typed.
-            if verdict == .silent { showTransientError("Didn't hear anything") } else { overlay.hide() }
-            cancelDictation()
-            return
-        }
-
-        phase = .finalizing
-        overlay.model.phase = .finalizing
-
-        // Snapshot what we're dictating into at the moment of release — the
-        // refiner uses the surrounding text; the insertion guard uses the
-        // app identity.
-        releaseContext = FocusContextCapture.capture(includeText: configProvider().captureContext)
-
-        Task { await session.commit() }
-
-        // File-based backends upload after release: add half a second per spoken second.
-        let uploadAllowance = configProvider().transcriptionBackend.uploadsOnRelease ? duration / 2 : 0
-        timeoutTask = Task { [weak self] in
-            try? await Task.sleep(for: Self.completionTimeout + .seconds(uploadAllowance))
-            guard !Task.isCancelled, self?.phase == .finalizing else { return }
-            self?.finishWithPendingTranscript(orFail: "Timed out waiting for the transcript")
         }
     }
 
@@ -276,6 +247,7 @@ final class DictationCoordinator: ObservableObject {
         audio.stop()
 
         let rawText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        archiveRecording(verdict: .speech, transcript: rawText)
         let config = configProvider()
         let context = releaseContext ?? FocusContext()
 
@@ -286,10 +258,14 @@ final class DictationCoordinator: ObservableObject {
 
         cleanupSession()
 
-        guard !rawText.isEmpty else {
+        // Never type a phrase models invent from silence when the detector
+        // heard no voice (live text alone let this hold through).
+        let invented = voice.map { !$0.detected } == true && SpeechGate.isSilenceHallucination(rawText)
+        guard !rawText.isEmpty, !invented else {
+            if invented { Self.log.warning("dropped transcript: no voice detected and it matches a silence hallucination") }
             screenTask?.cancel()
-            overlay.hide()
             phase = .idle
+            showTransientError("Didn't hear anything")
             return
         }
 
@@ -374,12 +350,6 @@ final class DictationCoordinator: ObservableObject {
         phase = .idle
     }
 
-    private func reset() {
-        cleanupSession()
-        overlay.hide()
-        phase = .idle
-    }
-
     private func cleanupSession() {
         timeoutTask?.cancel()
         timeoutTask = nil
@@ -405,5 +375,83 @@ final class DictationCoordinator: ObservableObject {
             guard !Task.isCancelled, let self, self.phase == .idle else { return }
             self.overlay.hide()
         }
+    }
+}
+
+// MARK: - Release: voice check before commit
+
+extension DictationCoordinator {
+    private func endDictation() {
+        guard phase == .recording, let session else {
+            return
+        }
+
+        audio.stop()
+
+        guard !speech.isTooShort else {
+            // An accidental tap vanishes without comment.
+            archiveRecording(verdict: .tooShort, transcript: nil)
+            overlay.hide()
+            cancelDictation()
+            return
+        }
+
+        phase = .finalizing
+        overlay.model.phase = .finalizing
+
+        // Snapshot what we're dictating into at the moment of release — the
+        // refiner uses the surrounding text; the insertion guard uses the
+        // app identity.
+        releaseContext = FocusContextCapture.capture(includeText: configProvider().captureContext)
+
+        // The detector scores the whole hold (~40 ms per 15 s of audio).
+        let detector = self.detector
+        let pcm = recordedPCM
+        Task { [weak self] in
+            var voice: VoiceActivityDetector.Result?
+            do {
+                voice = try await detector.analyze(pcm16: pcm, sampleRate: RealtimeProtocol.sampleRate)
+            } catch {
+                // Fail open: dropping real speech is worse than one wasted request.
+                Self.log.error("voice detector failed: \(error.localizedDescription, privacy: .public)")
+            }
+            self?.commitIfSpeech(session, voice: voice)
+        }
+    }
+
+    private func commitIfSpeech(_ session: any TranscriptionSession, voice: VoiceActivityDetector.Result?) {
+        guard phase == .finalizing, self.session === session else { return }
+        self.voice = voice
+        let verdict = speech.verdict(heardLiveText: heardLiveText, voiceDetected: voice?.detected ?? true)
+        let stats = String(
+            format: "duration=%.2fs rms=%.4f voice=%.2fs max=%.2f",
+            speech.duration, speech.averageRMS, voice?.speechDuration ?? -1, voice?.maxProbability ?? -1
+        )
+        Self.log.notice("end: \(stats, privacy: .public) liveText=\(self.heardLiveText) verdict=\(String(describing: verdict), privacy: .public)")
+        guard verdict == .speech else {
+            archiveRecording(verdict: verdict, transcript: nil)
+            showTransientError("Didn't hear anything")
+            cancelDictation()
+            return
+        }
+
+        Task { await session.commit() }
+
+        // File-based backends upload after release: add half a second per spoken second.
+        let uploadAllowance = configProvider().transcriptionBackend.uploadsOnRelease ? speech.duration / 2 : 0
+        timeoutTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.completionTimeout + .seconds(uploadAllowance))
+            guard !Task.isCancelled, self?.phase == .finalizing else { return }
+            self?.finishWithPendingTranscript(orFail: "Timed out waiting for the transcript")
+        }
+    }
+
+    private func archiveRecording(verdict: SpeechGate.Verdict, transcript: String?) {
+        guard RecordingArchive.isEnabled else { return }
+        let backend = configProvider().transcriptionBackend.rawValue
+        let entry = RecordingArchive.Entry(
+            backend: backend, gate: speech, voice: voice, heardLiveText: heardLiveText, verdict: verdict, transcript: transcript
+        )
+        RecordingArchive.save(pcm16: recordedPCM, entry: entry)
     }
 }
