@@ -24,6 +24,22 @@ struct Refiner {
         }
     }
 
+    /// What to tell the user when refinement failed in a way that repeats on
+    /// every dictation until they act (bad key, unavailable model). Nil for
+    /// timeouts and server errors — the next try may succeed, so those stay
+    /// silent and the raw transcript is inserted as usual.
+    static func failureNotice(for error: Error, provider: RefinementProvider) -> String? {
+        guard case RefinerError.badResponse(let status, _) = error else { return nil }
+        switch status {
+        case 401:
+            return "Polish skipped: \(provider.label) rejected the API key"
+        case 403, 404:
+            return "Polish skipped: \(provider.label) can't use this model; check Settings"
+        default:
+            return nil
+        }
+    }
+
     private static let log = Logger(subsystem: "com.sgstq.voce", category: "refine")
     private static let timeout: TimeInterval = 12
 
@@ -286,6 +302,11 @@ struct Refiner {
             // to run, so no sampling temperature.
             payload["temperature"] = 0
             payload["max_tokens"] = 1500
+            // gpt-oss reasons before answering; low effort keeps a one-line
+            // cleanup fast. Other models on these providers reject the param.
+            if model.contains("gpt-oss") {
+                payload["reasoning_effort"] = "low"
+            }
         case .appleOnDevice:
             break
         }

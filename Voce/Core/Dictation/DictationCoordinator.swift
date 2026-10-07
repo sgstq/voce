@@ -1,3 +1,6 @@
+// The dictation state machine sits just past the 400-line limit; splitting it
+// is its own refactor.
+// swiftlint:disable file_length
 import AppKit
 import Foundation
 import os
@@ -313,6 +316,7 @@ final class DictationCoordinator: ObservableObject {
             }
 
             var finalText = rawText
+            var notice: String?
             do {
                 finalText = try await refiner.refine(
                     transcript: rawText,
@@ -324,14 +328,16 @@ final class DictationCoordinator: ObservableObject {
                 )
             } catch {
                 Self.log.error("refinement failed, using raw: \(error.localizedDescription, privacy: .public)")
+                notice = Refiner.failureNotice(for: error, provider: provider)
             }
-            self?.insertAfterGuard(finalText, mode: config.insertionMode, context: context)
+            self?.insertAfterGuard(finalText, mode: config.insertionMode, context: context, notice: notice)
         }
     }
 
     /// Refuses to type into a different app than the one the user dictated
-    /// into — focus can move during transcription/refinement.
-    private func insertAfterGuard(_ text: String, mode: InsertionMode, context: FocusContext) {
+    /// into — focus can move during transcription/refinement. `notice` is
+    /// shown once the text has landed, so it never competes with insertion.
+    private func insertAfterGuard(_ text: String, mode: InsertionMode, context: FocusContext, notice: String? = nil) {
         overlay.hide()
         phase = .idle
 
@@ -347,6 +353,9 @@ final class DictationCoordinator: ObservableObject {
         Task { [weak self] in
             do {
                 try await inserter.insert(text, mode: mode)
+                if let notice {
+                    self?.showTransientError(notice)
+                }
             } catch {
                 Self.log.error("insertion failed: \(error.localizedDescription, privacy: .public)")
                 self?.showTransientError("Insertion failed: \(error.localizedDescription)")

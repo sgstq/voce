@@ -149,6 +149,35 @@ final class RefinerTests: XCTestCase {
         }
     }
 
+    func testGptOssRequestBodiesUseLowReasoningEffort() throws {
+        for (provider, model) in [(RefinementProvider.groq, "openai/gpt-oss-120b"), (.cerebras, "gpt-oss-120b")] {
+            let data = try Refiner.requestBody(provider: provider, model: model, system: "S", user: "P")
+            let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            // gpt-oss reasons by default; low effort keeps cleanup fast.
+            XCTAssertEqual(object["reasoning_effort"] as? String, "low", "\(provider)")
+            XCTAssertEqual(object["temperature"] as? Double, 0)
+            XCTAssertEqual(object["max_tokens"] as? Int, 1500)
+        }
+    }
+
+    func testFailureNoticeOnlyForErrorsThatRepeat() {
+        func notice(_ error: Error) -> String? {
+            Refiner.failureNotice(for: error, provider: .groq)
+        }
+
+        XCTAssertEqual(notice(Refiner.RefinerError.badResponse(404, "model_not_found")),
+                       "Polish skipped: Groq can't use this model; check Settings")
+        XCTAssertEqual(notice(Refiner.RefinerError.badResponse(403, "")),
+                       "Polish skipped: Groq can't use this model; check Settings")
+        XCTAssertEqual(notice(Refiner.RefinerError.badResponse(401, "")),
+                       "Polish skipped: Groq rejected the API key")
+        // Transient failures stay silent — the next dictation may succeed.
+        XCTAssertNil(notice(Refiner.RefinerError.badResponse(429, "")))
+        XCTAssertNil(notice(Refiner.RefinerError.badResponse(503, "")))
+        XCTAssertNil(notice(Refiner.RefinerError.emptyResponse))
+        XCTAssertNil(notice(URLError(.timedOut)))
+    }
+
     func testProviderTable() {
         XCTAssertEqual(RefinementProvider.openAI.endpoint?.host, "api.openai.com")
         XCTAssertEqual(RefinementProvider.groq.endpoint?.host, "api.groq.com")

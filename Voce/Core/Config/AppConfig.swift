@@ -76,7 +76,8 @@ struct AppConfig: Codable, Equatable {
         self.openRouterModel = try container.decodeIfPresent(String.self, forKey: .openRouterModel) ?? defaults.openRouterModel
         self.refinementEnabled = try container.decodeIfPresent(Bool.self, forKey: .refinementEnabled) ?? defaults.refinementEnabled
         self.refinementProvider = try container.decodeIfPresent(RefinementProvider.self, forKey: .refinementProvider) ?? defaults.refinementProvider
-        self.refinementModel = try container.decodeIfPresent(String.self, forKey: .refinementModel) ?? defaults.refinementModel
+        let refinementModel = try container.decodeIfPresent(String.self, forKey: .refinementModel) ?? defaults.refinementModel
+        self.refinementModel = refinementProvider.replacement(forRetiredModel: refinementModel) ?? refinementModel
         self.theme = try container.decodeIfPresent(AppTheme.self, forKey: .theme) ?? defaults.theme
         self.accent = try container.decodeIfPresent(AccentColor.self, forKey: .accent) ?? defaults.accent
         self.captureContext = try container.decodeIfPresent(Bool.self, forKey: .captureContext) ?? defaults.captureContext
