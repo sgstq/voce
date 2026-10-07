@@ -152,3 +152,49 @@ enum AudioMath {
         return (sumSquares, sampleCount)
     }
 }
+
+/// Decides whether a push-to-talk recording held speech. Energy is judged per
+/// capture chunk (~100 ms) instead of averaged over the whole hold, so pauses
+/// in a long dictation can't drag real speech under the threshold.
+struct SpeechGate {
+    enum Verdict: Equatable {
+        case speech
+        /// Shorter than any real utterance — an accidental tap.
+        case tooShort
+        /// Long enough, but no chunk loud enough to be speech.
+        case silent
+    }
+
+    static let minimumDuration: TimeInterval = 0.15
+    /// Normalized RMS a chunk must reach to count as voiced — the
+    /// prototype's whole-recording threshold, now applied per chunk.
+    static let voicedRMSThreshold = 0.005
+    /// Voiced time required when no live text arrived; longer than the
+    /// click of the push-to-talk key itself.
+    static let minimumVoicedDuration: TimeInterval = 0.25
+
+    private var sampleCount = 0
+    private var voicedSampleCount = 0
+    private var sumSquares = 0.0
+
+    var duration: TimeInterval { Double(sampleCount) / Double(RealtimeProtocol.sampleRate) }
+    var voicedDuration: TimeInterval { Double(voicedSampleCount) / Double(RealtimeProtocol.sampleRate) }
+    var averageRMS: Double { sampleCount > 0 ? (sumSquares / Double(sampleCount)).squareRoot() : 0 }
+
+    mutating func add(_ chunk: (sumSquares: Double, sampleCount: Int)) {
+        guard chunk.sampleCount > 0 else { return }
+        sumSquares += chunk.sumSquares
+        sampleCount += chunk.sampleCount
+        if (chunk.sumSquares / Double(chunk.sampleCount)).squareRoot() >= Self.voicedRMSThreshold {
+            voicedSampleCount += chunk.sampleCount
+        }
+    }
+
+    /// Live text from the backend proves speech however quiet the mic was —
+    /// the server heard words, so the recording must never be dropped.
+    func verdict(heardLiveText: Bool) -> Verdict {
+        if duration < Self.minimumDuration { return .tooShort }
+        if heardLiveText || voicedDuration >= Self.minimumVoicedDuration { return .speech }
+        return .silent
+    }
+}

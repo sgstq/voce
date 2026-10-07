@@ -20,10 +20,6 @@ final class DictationCoordinator: ObservableObject {
 
     private static let log = Logger(subsystem: "com.sgstq.voce", category: "dictation")
 
-    /// Mirrors the prototype's guards: ignore blips shorter than this or
-    /// quieter than the silence threshold (normalized RMS).
-    private static let minimumDuration: TimeInterval = 0.15
-    private static let silenceRMSThreshold = 0.005
     private static let completionTimeout: Duration = .seconds(10)
     private static let errorDisplayTime: Duration = .seconds(3)
 
@@ -43,8 +39,9 @@ final class DictationCoordinator: ObservableObject {
     private var errorDismissTask: Task<Void, Never>?
 
     private var transcript = ""
-    private var sampleCount = 0
-    private var sumSquares = 0.0
+    private var speech = SpeechGate()
+    /// Set once the backend streams any non-blank live text.
+    private var heardLiveText = false
     private var releaseContext: FocusContext?
     private var screenContextTask: Task<String?, Never>?
 
@@ -108,8 +105,8 @@ final class DictationCoordinator: ObservableObject {
         Self.log.notice("begin: backend=\(backend.rawValue, privacy: .public) insertion=\(config.insertionMode.rawValue, privacy: .public)")
 
         transcript = ""
-        sampleCount = 0
-        sumSquares = 0
+        speech = SpeechGate()
+        heardLiveText = false
         releaseContext = nil
         errorDismissTask?.cancel()
 
@@ -153,7 +150,7 @@ final class DictationCoordinator: ObservableObject {
             for await chunk in chunks {
                 guard let self else { return }
                 let stats = AudioMath.rmsEnergy(pcm16: chunk)
-                self.accumulate(stats)
+                self.speech.add(stats)
                 self.overlay.model.pushAudio(sumSquares: stats.sumSquares, sampleCount: stats.sampleCount)
                 await session.sendAudio(chunk)
             }
@@ -173,13 +170,14 @@ final class DictationCoordinator: ObservableObject {
 
         audio.stop()
 
-        let duration = Double(sampleCount) / Double(RealtimeProtocol.sampleRate)
-        let rms = sampleCount > 0 ? (sumSquares / Double(sampleCount)).squareRoot() : 0
-        Self.log.notice("end: duration=\(String(format: "%.2f", duration), privacy: .public)s rms=\(String(format: "%.4f", rms), privacy: .public)")
-        guard duration >= Self.minimumDuration, rms >= Self.silenceRMSThreshold else {
-            Self.log.notice("end: discarded (too short or silent)")
-            Task { await session.abort() }
-            reset()
+        let duration = speech.duration
+        let verdict = speech.verdict(heardLiveText: heardLiveText)
+        let stats = String(format: "duration=%.2fs rms=%.4f voiced=%.2fs", duration, speech.averageRMS, speech.voicedDuration)
+        Self.log.notice("end: \(stats, privacy: .public) liveText=\(self.heardLiveText) verdict=\(String(describing: verdict), privacy: .public)")
+        guard verdict == .speech else {
+            // An accidental tap vanishes; a real hold always says why nothing was typed.
+            if verdict == .silent { showTransientError("Didn't hear anything") } else { overlay.hide() }
+            cancelDictation()
             return
         }
 
@@ -202,11 +200,6 @@ final class DictationCoordinator: ObservableObject {
         }
     }
 
-    private func accumulate(_ stats: (sumSquares: Double, sampleCount: Int)) {
-        sumSquares += stats.sumSquares
-        sampleCount += stats.sampleCount
-    }
-
     private func handle(_ event: TranscriptionEvent) {
         switch event {
         case .ready:
@@ -214,10 +207,12 @@ final class DictationCoordinator: ObservableObject {
 
         case .delta(let delta):
             transcript += delta
+            noteLiveText(delta)
             overlay.model.updateLiveText(transcript)
 
         case .preview(let text):
             // Interim text the backend may still rewrite — display only.
+            noteLiveText(text)
             overlay.model.updateLiveText(text)
 
         case .completed(let finalTranscript):
@@ -248,6 +243,12 @@ final class DictationCoordinator: ObservableObject {
             if phase == .finalizing {
                 finishWithPendingTranscript(orFail: "The session closed without a transcript")
             }
+        }
+    }
+
+    private func noteLiveText(_ text: String) {
+        if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            heardLiveText = true
         }
     }
 
