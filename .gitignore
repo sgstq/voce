@@ -25,3 +25,7 @@ secrets.plist
 
 # Release artifacts (built by scripts/package.sh)
 dist/
+
+# Site (Cloudflare Workers)
+site/node_modules/
+site/.wrangler/

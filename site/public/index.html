@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Voce — Speak. It types.</title>
+<meta name="description" content="Voce is push-to-talk dictation for macOS. Hold a key, say what you mean, and clean, punctuated text appears at your cursor in any app. Free and open source." />
+<link rel="canonical" href="https://voceapp.link/" />
+<link rel="icon" href="/favicon.png" type="image/png" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<meta name="theme-color" content="#121016" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Voce" />
+<meta property="og:title" content="Voce — Speak. It types." />
+<meta property="og:description" content="Push-to-talk dictation for macOS. Hold a key, speak, and polished text lands at your cursor in any app." />
+<meta property="og:url" content="https://voceapp.link/" />
+<meta property="og:image" content="https://voceapp.link/og.jpg" />
+<meta property="og:image:width" content="2000" />
+<meta property="og:image:height" content="1300" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #121016;
+    --bg-2: #18151e;
+    --surface: #1e1a26;
+    --surface-2: #26212f;
+    --ink: #f3f0f6;
+    --ink-soft: #b4adc0;
+    --ink-faint: #7d7589;
+    --line: rgba(255, 255, 255, 0.08);
+    --line-strong: rgba(255, 255, 255, 0.14);
+    --accent: #8d7fe0;
+    --accent-ink: #ffffff;
+    --accent-wash: rgba(141, 127, 224, 0.14);
+    --hud: #141414;
+    --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --max: 1120px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 17px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+  a { color: inherit; text-decoration: none; }
+  img { display: block; max-width: 100%; height: auto; }
+  .wrap { width: min(var(--max), 100% - 2rem); margin: 0 auto; }
+  h1, h2, h3 { margin: 0; letter-spacing: -0.02em; line-height: 1.1; font-weight: 600; }
+  p { margin: 0; }
+  kbd {
+    display: inline-block;
+    font-family: var(--font);
+    font-size: 0.85em;
+    font-weight: 600;
+    padding: 0.1em 0.55em 0.15em;
+    border-radius: 6px;
+    background: var(--surface-2);
+    border: 1px solid var(--line-strong);
+    box-shadow: 0 1.5px 0 var(--line-strong);
+    vertical-align: 0.05em;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.8rem 1.3rem;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 1rem;
+    line-height: 1;
+    border: 1px solid transparent;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+    white-space: nowrap;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); }
+  .btn-primary:hover { background: #9c90e6; }
+  .btn-secondary { background: transparent; color: var(--ink); border-color: var(--line-strong); }
+  .btn-secondary:hover { border-color: rgba(255, 255, 255, 0.3); background: rgba(255, 255, 255, 0.03); }
+  .btn svg { width: 18px; height: 18px; flex: none; }
+  .btn small { font-weight: 500; opacity: 0.75; font-size: 0.85em; }
+
+  /* nav */
+  .nav {
+    position: sticky; top: 0; z-index: 10;
+    backdrop-filter: saturate(160%) blur(14px);
+    -webkit-backdrop-filter: saturate(160%) blur(14px);
+    background: rgba(18, 16, 22, 0.72);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+  .brand { display: flex; align-items: center; gap: 0.6rem; font-weight: 600; font-size: 1.05rem; }
+  .brand img { width: 28px; height: 28px; border-radius: 7px; }
+  .nav-links { display: flex; align-items: center; gap: 1.6rem; font-size: 0.95rem; color: var(--ink-soft); }
+  .nav-links a:hover { color: var(--ink); }
+  .nav .btn { padding: 0.55rem 1rem; font-size: 0.9rem; }
+  @media (max-width: 720px) { .nav-links a:not(.btn) { display: none; } }
+
+  /* hero */
+  .hero { position: relative; padding: 5.5rem 0 3rem; text-align: center; overflow: hidden; }
+  .hero::before {
+    content: ""; position: absolute; inset: -40% -20% auto; height: 120%; pointer-events: none;
+    background: radial-gradient(60% 50% at 50% 10%, rgba(141, 127, 224, 0.16), transparent 70%);
+  }
+  .hero > * { position: relative; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    font-size: 0.85rem; font-weight: 500; color: var(--ink-soft);
+    padding: 0.35rem 0.85rem; border-radius: 999px; border: 1px solid var(--line-strong);
+    background: rgba(255, 255, 255, 0.03);
+  }
+  .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .hero h1 { font-size: clamp(3rem, 8vw, 5.5rem); margin: 1.4rem 0 1.1rem; letter-spacing: -0.035em; }
+  .hero h1 span { color: var(--ink-faint); }
+  .hero .lede { font-size: clamp(1.1rem, 2.2vw, 1.35rem); color: var(--ink-soft); max-width: 40rem; margin: 0 auto; }
+  .cta { display: flex; justify-content: center; gap: 0.8rem; flex-wrap: wrap; margin-top: 2rem; }
+  .req { margin-top: 1rem; font-size: 0.85rem; color: var(--ink-faint); }
+
+  /* demo */
+  .demo { margin: 3.5rem auto 0; width: min(880px, 100%); position: relative; }
+  .window {
+    background: #1c1c1e; border-radius: 12px; overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
+    text-align: left;
+  }
+  .titlebar {
+    display: flex; align-items: center; gap: 0.6rem; padding: 0.8rem 1rem;
+    background: #2a2a2d; border-bottom: 1px solid rgba(0, 0, 0, 0.5);
+    font-size: 0.85rem; color: #9a9a9f; font-weight: 500;
+  }
+  .lights { display: flex; gap: 7px; }
+  .lights i { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; }
+  .lights i:nth-child(2) { background: #febc2e; }
+  .lights i:nth-child(3) { background: #28c840; }
+  .titlebar .title { margin-left: 0.4rem; }
+  .doc {
+    padding: 1.6rem 2rem 4.5rem; min-height: 290px;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 1.05rem; line-height: 1.75; color: #ebebeb;
+  }
+  .doc p + p { margin-top: 1.1rem; }
+  .doc .typed { white-space: pre-wrap; }
+  .caret { display: inline-block; width: 2px; height: 1.15em; background: #ebebeb; vertical-align: -0.2em; margin-left: 1px;
+    animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .hud {
+    position: absolute; left: 50%; bottom: 1.6rem; transform: translateX(-50%) scale(0.6);
+    opacity: 0; display: flex; align-items: center; gap: 0.8rem;
+    height: 40px; padding: 0 1rem 0 0.9rem; border-radius: 999px;
+    background: var(--hud); color: #fff; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    font-size: 0.95rem; font-weight: 500; white-space: nowrap; max-width: calc(100% - 2rem);
+    transition: opacity 0.18s ease, transform 0.35s cubic-bezier(0.2, 1.2, 0.3, 1);
+  }
+  .hud.on { opacity: 1; transform: translateX(-50%) scale(1); }
+  .hud .text { overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; max-width: 380px; }
+  .hud .text:empty { display: none; }
+  .bars { display: flex; align-items: center; gap: 2px; height: 28px; }
+  .bars i { width: 3px; height: 4px; border-radius: 2px; background: #fff; transition: height 0.08s ease; }
+  .hint {
+    display: flex; justify-content: center; align-items: center; gap: 0.5rem; margin-top: 1.2rem;
+    font-size: 0.9rem; color: var(--ink-faint);
+  }
+  .hint kbd { transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
+  .hint kbd.held { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: none; transform: translateY(1.5px); }
+
+  /* sections */
+  section { padding: 5.5rem 0; }
+  section + section { border-top: 1px solid var(--line); }
+  .section-head { max-width: 38rem; margin-bottom: 3rem; }
+  .section-head h2 { font-size: clamp(1.9rem, 4vw, 2.6rem); margin-bottom: 0.9rem; }
+  .section-head p { color: var(--ink-soft); font-size: 1.1rem; }
+  .label { font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); margin-bottom: 0.9rem; }
+
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
+  .step { position: relative; padding: 1.8rem 1.6rem 1.6rem; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); }
+  .step .num { font-family: var(--mono); font-size: 0.8rem; color: var(--ink-faint); margin-bottom: 1.4rem; }
+  .step h3 { font-size: 1.35rem; margin-bottom: 0.5rem; }
+  .step p { color: var(--ink-soft); font-size: 0.98rem; }
+  .step .glyph { height: 56px; display: flex; align-items: center; margin-bottom: 0.5rem; }
+  .step .glyph kbd { font-size: 1rem; padding: 0.35rem 0.9rem; }
+  .mini-hud { display: inline-flex; align-items: center; height: 32px; padding: 0 0.8rem; border-radius: 999px; background: var(--hud); box-shadow: 0 0 0 1px rgba(255,255,255,0.08); }
+  .mini-hud .bars { height: 20px; }
+  .mini-hud .bars i { animation: wave 1.1s ease-in-out infinite; }
+  .mini-hud .bars i:nth-child(1), .mini-hud .bars i:nth-child(13) { --h: 6px; animation-delay: 0.5s; }
+  .mini-hud .bars i:nth-child(2), .mini-hud .bars i:nth-child(12) { --h: 9px; animation-delay: 0.42s; }
+  .mini-hud .bars i:nth-child(3), .mini-hud .bars i:nth-child(11) { --h: 12px; animation-delay: 0.34s; }
+  .mini-hud .bars i:nth-child(4), .mini-hud .bars i:nth-child(10) { --h: 15px; animation-delay: 0.26s; }
+  .mini-hud .bars i:nth-child(5), .mini-hud .bars i:nth-child(9) { --h: 17px; animation-delay: 0.18s; }
+  .mini-hud .bars i:nth-child(6), .mini-hud .bars i:nth-child(8) { --h: 19px; animation-delay: 0.1s; }
+  .mini-hud .bars i:nth-child(7) { --h: 20px; animation-delay: 0s; }
+  @keyframes wave { 0%, 100% { height: 4px; } 50% { height: var(--h); } }
+  .typed-sample { font-family: var(--font); font-size: 1rem; color: var(--ink); }
+  .typed-sample::after { content: ""; display: inline-block; width: 2px; height: 1em; background: var(--accent); vertical-align: -0.15em; margin-left: 2px; animation: blink 1s steps(1) infinite; }
+
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem 2.5rem; }
+  .feature h3 { font-size: 1.1rem; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.6rem; }
+  .feature h3 svg { width: 20px; height: 20px; color: var(--accent); flex: none; }
+  .feature p { color: var(--ink-soft); font-size: 0.97rem; }
+  .feature { padding: 1.4rem 0; border-top: 1px solid var(--line); }
+
+  .shots { display: grid; grid-template-columns: 1.4fr 1fr; gap: 1.5rem; align-items: start; }
+  .shot { border-radius: 14px; overflow: hidden; border: 1px solid var(--line-strong); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45); background: var(--surface); }
+  .shot img { width: 100%; }
+  .shot-cap { margin-top: 0.8rem; font-size: 0.9rem; color: var(--ink-faint); text-align: center; }
+
+  .privacy { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: center; }
+  .privacy ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.9rem; }
+  .privacy li { display: flex; gap: 0.8rem; color: var(--ink-soft); }
+  .privacy li svg { width: 22px; height: 22px; color: var(--accent); flex: none; margin-top: 0.1em; }
+  .privacy li strong { color: var(--ink); display: block; font-weight: 600; }
+
+  .download { text-align: center; padding: 6rem 0; }
+  .download .icon { width: 96px; height: 96px; margin: 0 auto 1.6rem; border-radius: 22px; box-shadow: 0 20px 50px rgba(109, 94, 214, 0.35); }
+  .download h2 { font-size: clamp(2rem, 5vw, 3rem); margin-bottom: 0.8rem; }
+  .download p { color: var(--ink-soft); max-width: 34rem; margin: 0 auto; }
+  .download .src { margin-top: 2.5rem; font-size: 0.9rem; color: var(--ink-faint); }
+  .download .src a { color: var(--ink-soft); border-bottom: 1px solid var(--line-strong); }
+  .download .src a:hover { color: var(--ink); }
+  .download code { font-family: var(--mono); font-size: 0.85em; background: var(--surface); padding: 0.15em 0.45em; border-radius: 5px; border: 1px solid var(--line); }
+
+  footer { border-top: 1px solid var(--line); padding: 2rem 0 2.5rem; font-size: 0.9rem; color: var(--ink-faint); }
+  footer .wrap { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+  footer nav { display: flex; gap: 1.4rem; }
+  footer a:hover { color: var(--ink); }
+
+  @media (max-width: 860px) {
+    .steps, .features { grid-template-columns: 1fr; }
+    .features { gap: 0; }
+    .shots, .privacy { grid-template-columns: 1fr; }
+    section { padding: 4rem 0; }
+    .hero { padding-top: 4rem; }
+    .doc { padding: 1.2rem 1.2rem 4.5rem; font-size: 0.95rem; min-height: 250px; }
+    .hud .text { max-width: 180px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .mini-hud .bars i { animation: none; height: var(--h, 4px); }
+    .caret, .typed-sample::after { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#"><img src="/icon.png" alt="" width="28" height="28" /> Voce</a>
+    <nav class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#privacy">Privacy</a>
+      <a href="https://github.com/sgstq/voce">GitHub</a>
+      <a class="btn btn-primary" href="https://github.com/sgstq/voce/releases/latest" data-download>Download</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <span class="eyebrow"><span class="dot"></span> Push-to-talk dictation for macOS</span>
+      <h1>Speak.<br /><span>It types.</span></h1>
+      <p class="lede">Hold a key, say what you mean, and clean, punctuated text appears at your cursor. In any app on your Mac.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/sgstq/voce/releases/latest" data-download>
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.37 12.65c-.03-2.6 2.13-3.86 2.22-3.92-1.21-1.77-3.1-2.01-3.77-2.04-1.6-.16-3.13.95-3.95.95-.81 0-2.07-.93-3.4-.9-1.75.03-3.37 1.02-4.27 2.59-1.82 3.16-.46 7.83 1.31 10.4.87 1.25 1.9 2.66 3.25 2.61 1.3-.05 1.8-.84 3.37-.84 1.57 0 2.02.84 3.4.81 1.4-.02 2.29-1.27 3.15-2.53 1-1.45 1.4-2.86 1.43-2.93-.03-.01-2.74-1.05-2.74-4.2zM13.78 5.01c.72-.87 1.2-2.08 1.07-3.29-1.03.04-2.29.69-3.03 1.56-.66.77-1.25 2-1.09 3.18 1.15.09 2.33-.58 3.05-1.45z"/></svg>
+          Download for macOS <small data-version></small>
+        </a>
+        <a class="btn btn-secondary" href="https://github.com/sgstq/voce">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2.17c-3.2.7-3.87-1.37-3.87-1.37-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.76 2.69 1.25 3.35.96.1-.75.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>
+          View on GitHub
+        </a>
+      </div>
+      <p class="req">Free and open source · Apple Silicon · macOS 26 or later</p>
+
+      <div class="demo" aria-hidden="true">
+        <div class="window">
+          <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span><span class="title">Launch update.rtf</span></div>
+          <div class="doc">
+            <p>Hi team,</p>
+            <p>Quick update on the launch: the new onboarding flow is ready for review, and the beta build went out to testers this morning. <span class="typed" id="typed"></span><span class="caret"></span></p>
+          </div>
+        </div>
+        <div class="hud" id="hud">
+          <span class="bars" id="bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+          <span class="text" id="hudText"></span>
+        </div>
+      </div>
+      <p class="hint">Hold <kbd id="hintKey">F5</kbd> <span id="hintText">and talk</span></p>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="label">How it works</div>
+        <h2>That's the whole app.</h2>
+        <p>Voce lives in your menu bar and waits. No window to switch to, no copy and paste. It just types.</p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="num">01</div>
+          <div class="glyph"><kbd>F5</kbd></div>
+          <h3>Hold</h3>
+          <p>Press and hold your push-to-talk key. F5 by default, or pick any key or modifier you like.</p>
+        </div>
+        <div class="step">
+          <div class="num">02</div>
+          <div class="glyph"><span class="mini-hud"><span class="bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></span></div>
+          <h3>Speak</h3>
+          <p>A small capsule at the bottom of the screen moves with your voice. It never steals focus.</p>
+        </div>
+        <div class="step">
+          <div class="num">03</div>
+          <div class="glyph"><span class="typed-sample">move the review to Thursday.</span></div>
+          <h3>Release</h3>
+          <p>Your words land at the cursor in about a second, with the <em>ums</em> gone and the commas in place.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="label">Features</div>
+        <h2>Everything you'd want. Nothing you wouldn't.</h2>
+        <p>Typing is slow. Talking isn't. Voce gets out of the way and lets you write at the speed you think.</p>
+      </div>
+      <div class="features">
+        <div class="feature">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Works everywhere</h3>
+          <p>Mail, Slack, Notes, your browser, your editor, your terminal. If you can type there, you can talk there.</p>
+        </div>
+        <div class="feature">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h10M4 17h13"/></svg>Sounds like you, only tidier</h3>
+          <p>Drops filler words, fixes punctuation and matches the tone of the text around your cursor.</p>
+        </div>
+        <div class="feature">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Private when you want it</h3>
+          <p>Transcribe and polish entirely on your Mac with Apple's on-device models. No account, nothing leaves your computer.</p>
+        </div>
+        <div class="feature">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>Multilingual</h3>
+          <p>Detects the language you're speaking, even if you switch mid-sentence.</p>
+        </div>
+        <div class="feature">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="4"/></svg>Context-aware</h3>
+          <p>Reads the text around your cursor, and optionally the active window, so names and terms come out right.</p>
+        </div>
+        <div class="feature">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="7" cy="18" r="2" fill="currentColor" stroke="none"/></svg>Your choice of engine</h3>
+          <p>On-device, or OpenAI and Deepgram for the fastest streaming. Polish with Apple Intelligence, OpenAI, Groq or Cerebras.</p>
+        </div>
+        <div class="feature">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h4"/></svg>Clipboard-safe</h3>
+          <p>Text is typed as real keystrokes, so whatever you copied stays on your clipboard.</p>
+        </div>
+        <div class="feature">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>Light on your Mac</h3>
+          <p>No Dock icon, optional launch at login, and almost no CPU while idle.</p>
+        </div>
+        <div class="feature">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V6l-8-3z"/><path d="m9 12 2 2 4-4"/></svg>Open source</h3>
+          <p>Swift and SwiftUI, built for Apple Silicon. Read the code, file an issue, or build it yourself.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="mac">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="label">Made for macOS</div>
+        <h2>Looks and feels like part of your Mac.</h2>
+        <p>A native settings window, light and dark mode, and a quiet capsule that disappears the moment you let go.</p>
+      </div>
+      <div class="shots">
+        <div>
+          <div class="shot"><img src="/settings.webp" alt="Voce settings window, styled like System Settings" width="1400" height="1097" loading="lazy" /></div>
+          <p class="shot-cap">Settings, in the style of System Settings</p>
+        </div>
+        <div>
+          <div class="shot"><img src="/onboarding.webp" alt="Voce welcome window asking for Microphone and Accessibility access" width="1000" height="1177" loading="lazy" /></div>
+          <p class="shot-cap">A short welcome gets you set up</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="privacy">
+    <div class="wrap">
+      <div class="privacy">
+        <div class="section-head" style="margin-bottom:0">
+          <div class="label">Privacy</div>
+          <h2>It listens only while you hold the key.</h2>
+          <p>Voce keeps no recordings and no transcripts. What you say goes to your cursor, and nowhere else.</p>
+        </div>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span><strong>Nothing stored</strong>No audio and no history are kept on disk.</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span><strong>On-device by default</strong>Apple's speech and language models run entirely on your Mac.</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span><strong>Cloud only when you choose</strong>If you pick a cloud provider, audio goes to it only while it is being transcribed.</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span><strong>Keys in the Keychain</strong>Your API keys live in the macOS Keychain, never in a plain file.</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="download" id="download">
+    <div class="wrap">
+      <img class="icon" src="/icon.png" alt="" width="96" height="96" />
+      <h2>Start talking.</h2>
+      <p>Download the DMG, drag Voce into Applications, and grant Microphone and Accessibility access on first launch. That's it.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/sgstq/voce/releases/latest" data-download>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 19h16"/></svg>
+          Download for macOS <small data-version></small>
+        </a>
+        <a class="btn btn-secondary" href="https://github.com/sgstq/voce/releases">All releases</a>
+      </div>
+      <p class="req">Requires macOS 26 or later on Apple Silicon.</p>
+      <p class="src">Prefer to build it yourself? Clone <a href="https://github.com/sgstq/voce">sgstq/voce</a> and run <code>scripts/install.sh</code>.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 Voce. Open source on GitHub.</span>
+    <nav>
+      <a href="https://github.com/sgstq/voce">Source</a>
+      <a href="https://github.com/sgstq/voce/releases">Releases</a>
+      <a href="https://github.com/sgstq/voce/issues">Issues</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+(function () {
+  // Latest release: point every download button straight at the DMG and show the version.
+  fetch('https://api.github.com/repos/sgstq/voce/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (rel) {
+      if (!rel || !rel.tag_name) return;
+      var dmg = (rel.assets || []).find(function (a) { return /\.dmg$/i.test(a.name); });
+      document.querySelectorAll('[data-version]').forEach(function (el) { el.textContent = rel.tag_name; });
+      if (dmg) document.querySelectorAll('[data-download]').forEach(function (a) { a.href = dmg.browser_download_url; });
+    })
+    .catch(function () {});
+
+  // Hero demo: hold the key, bars follow a voice, transcript streams, release types the text.
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var hud = document.getElementById('hud');
+  var hudText = document.getElementById('hudText');
+  var typed = document.getElementById('typed');
+  var bars = Array.prototype.slice.call(document.querySelectorAll('#bars i'));
+  var key = document.getElementById('hintKey');
+  var hint = document.getElementById('hintText');
+  var phrases = [
+    { heard: 'um, early feedback is good, people, uh, finish setup in under a minute', typed: 'Early feedback is good — people finish setup in under a minute.' },
+    { heard: 'and uh can we move the design review to thursday afternoon', typed: 'Can we move the design review to Thursday afternoon?' },
+    { heard: 'thanks everyone, more soon', typed: 'Thanks everyone, more soon.' }
+  ];
+  if (reduce) {
+    typed.textContent = phrases[0].typed;
+    return;
+  }
+  var order = [6, 5, 7, 4, 8, 3, 9, 2, 10, 1, 11, 0, 12];
+  var levels = new Array(13).fill(0);
+  var speaking = false, raf;
+  function animateBars() {
+    var now = performance.now() / 1000;
+    var level = speaking ? 0.35 + 0.65 * Math.abs(Math.sin(now * 7.3) * Math.sin(now * 2.1) * Math.cos(now * 11)) : 0;
+    levels.unshift(level); levels.pop();
+    order.forEach(function (idx, i) {
+      var h = speaking ? 4 + levels[i] * (24 - i * 1.2) : 4;
+      bars[idx].style.height = h + 'px';
+    });
+    raf = requestAnimationFrame(animateBars);
+  }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  async function run() {
+    var i = 0;
+    for (;;) {
+      var p = phrases[i % phrases.length];
+      // hold
+      key.classList.add('held'); hint.textContent = 'and talk';
+      hudText.textContent = ''; hud.classList.add('on');
+      await sleep(350);
+      speaking = true;
+      var words = p.heard.split(' ');
+      for (var w = 0; w < words.length; w++) {
+        hudText.textContent += (w ? ' ' : '') + words[w];
+        await sleep(170 + Math.random() * 180);
+      }
+      speaking = false;
+      await sleep(250);
+      // release
+      key.classList.remove('held'); hint.textContent = 'and let go';
+      hud.classList.remove('on');
+      await sleep(500);
+      var out = p.typed;
+      if (typed.textContent) typed.textContent += ' ';
+      for (var c = 0; c < out.length; c++) {
+        typed.textContent += out[c];
+        await sleep(14);
+      }
+      await sleep(2600);
+      i++;
+      if (i % phrases.length === 0) { typed.textContent = ''; await sleep(600); }
+    }
+  }
+  animateBars();
+  run();
+})();
+</script>
+</body>
+</html>

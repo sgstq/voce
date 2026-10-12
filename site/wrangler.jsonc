@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "voceapp-link",
+  "compatibility_date": "2026-10-12",
+  "assets": {
+    "directory": "./public",
+    "not_found_handling": "404-page"
+  },
+  "routes": [
+    { "pattern": "voceapp.link", "custom_domain": true },
+    { "pattern": "www.voceapp.link", "custom_domain": true }
+  ]
+}
