@@ -1,9 +1,10 @@
 import AppKit
 import CoreGraphics
 
-/// Global push-to-talk key monitor built on a listen-only `CGEventTap`.
-/// Requires Accessibility trust. The tap runs on the main run loop, so the
-/// press/release callbacks always fire on the main actor.
+/// Global push-to-talk monitor built on a listen-only `CGEventTap`: it
+/// watches every profile's keys at once and reports which one is held.
+/// Requires Accessibility trust. The tap runs on the main run loop, so
+/// events always arrive on the main actor.
 @MainActor
 final class HotkeyMonitor {
     enum MonitorError: LocalizedError {
@@ -14,28 +15,31 @@ final class HotkeyMonitor {
         }
     }
 
-    private let spec: HotkeySpec
-    private let onPress: () -> Void
-    private let onRelease: () -> Void
+    private var matcher: HotkeyMatcher
+    private let onEvent: (HotkeyEvent) -> Void
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
-    private var isPressed = false
+    private var settleTask: Task<Void, Never>?
+    private var settlingBinding: HotkeyBinding?
 
     var isRunning: Bool { tap != nil }
 
-    init(spec: HotkeySpec, onPress: @escaping () -> Void, onRelease: @escaping () -> Void) {
-        self.spec = spec
-        self.onPress = onPress
-        self.onRelease = onRelease
+    init(bindings: [HotkeyBinding], onEvent: @escaping (HotkeyEvent) -> Void) {
+        self.matcher = HotkeyMatcher(bindings: bindings)
+        self.onEvent = onEvent
     }
 
     func start() throws {
         guard tap == nil else { return }
 
+        // Clicks can make a shortcut too: ⌘-click, ⌥-click.
         let mask: CGEventMask =
             (1 << CGEventType.keyDown.rawValue)
             | (1 << CGEventType.keyUp.rawValue)
             | (1 << CGEventType.flagsChanged.rawValue)
+            | (1 << CGEventType.leftMouseDown.rawValue)
+            | (1 << CGEventType.rightMouseDown.rawValue)
+            | (1 << CGEventType.otherMouseDown.rawValue)
 
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
@@ -65,7 +69,14 @@ final class HotkeyMonitor {
         }
         runLoopSource = nil
         tap = nil
-        isPressed = false
+        settleTask?.cancel()
+        settleTask = nil
+        settlingBinding = nil
+        matcher = HotkeyMatcher(bindings: matcher.bindings)
+    }
+
+    func update(bindings: [HotkeyBinding]) {
+        matcher.update(bindings: bindings)
     }
 
     fileprivate func handle(
@@ -79,33 +90,59 @@ final class HotkeyMonitor {
             if let tap {
                 CGEvent.tapEnable(tap: tap, enable: true)
             }
+            resync()
 
-        case .keyDown, .keyUp:
-            guard spec.kind == .key, keyCode == spec.keyCode else { return }
-            if type == .keyDown {
-                guard !isAutorepeat, !isPressed else { return }
-                isPressed = true
-                onPress()
-            } else if isPressed {
-                isPressed = false
-                onRelease()
-            }
+        case .keyDown:
+            guard !isAutorepeat else { return }
+            deliver(matcher.keyDown(keyCode))
+
+        case .keyUp:
+            deliver(matcher.keyUp(keyCode))
 
         case .flagsChanged:
-            guard spec.kind == .modifier,
-                  keyCode == spec.keyCode,
-                  let mask = KeyCodes.modifierMask(for: spec.keyCode) else { return }
-            let isDown = CGEventFlags(rawValue: rawFlags).contains(mask)
-            if isDown, !isPressed {
-                isPressed = true
-                onPress()
-            } else if !isDown, isPressed {
-                isPressed = false
-                onRelease()
-            }
+            let modifiers = KeyCodes.heldModifiers(rawFlags: rawFlags, changedKeyCode: keyCode)
+            deliver(matcher.modifiersChanged(to: modifiers))
+
+        case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+            deliver(matcher.click())
 
         default:
             break
+        }
+    }
+
+    /// Events can be lost while the tap was disabled; read the real key
+    /// state so a missed release can't leave a recording running.
+    private func resync() {
+        let flags = CGEventSource.flagsState(.combinedSessionState).rawValue
+        let keys = matcher.bindings
+            .reduce(into: Set<UInt16>()) { $0.formUnion($1.keys) }
+            .filter { CGEventSource.keyState(.combinedSessionState, key: CGKeyCode($0)) }
+        deliver(matcher.resync(modifiers: KeyCodes.heldModifiers(rawFlags: flags), keys: keys))
+    }
+
+    private func deliver(_ events: [HotkeyEvent]) {
+        scheduleSettleIfNeeded()
+        events.forEach(onEvent)
+    }
+
+    /// A pending binding fires once the combination stops growing.
+    private func scheduleSettleIfNeeded() {
+        guard case .pending(let binding) = matcher.state else {
+            settleTask?.cancel()
+            settleTask = nil
+            settlingBinding = nil
+            return
+        }
+        guard binding != settlingBinding else { return }
+        settlingBinding = binding
+        settleTask?.cancel()
+        settleTask = Task { [weak self] in
+            try? await Task.sleep(for: HotkeyMatcher.settleDelay)
+            guard !Task.isCancelled, let self else { return }
+            self.settlingBinding = nil
+            self.settleTask = nil
+            self.deliver(self.matcher.settle())
         }
     }
 }

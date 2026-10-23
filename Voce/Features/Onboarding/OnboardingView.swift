@@ -33,6 +33,9 @@ struct OnboardingView: View {
     @ObservedObject var appState: AppState
     let onDone: @MainActor () -> Void
 
+    /// First run sets up profile 1; more profiles come later, in Settings.
+    private var profile: DictationProfile { appState.config.primaryProfile }
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -58,17 +61,17 @@ struct OnboardingView: View {
                 }
 
                 Section {
-                    Picker("Transcribe with", selection: appState.binding(\.transcriptionBackend)) {
+                    Picker("Transcribe with", selection: appState.binding(profile: profile.id, \.transcriptionBackend)) {
                         ForEach(TranscriptionBackend.allCases) { backend in
                             Text(backend.label).tag(backend)
                         }
                     }
-                    if let account = appState.config.transcriptionBackend.keychainAccount {
+                    if let account = profile.transcriptionBackend.keychainAccount {
                         APIKeyField(
-                            title: "\(appState.config.transcriptionBackend.keyLabel) API key",
+                            title: "\(profile.transcriptionBackend.keyLabel) API key",
                             account: account,
-                            load: { appState.loadTranscriptionKey(for: appState.config.transcriptionBackend) },
-                            save: { appState.saveTranscriptionKey($0, for: appState.config.transcriptionBackend) }
+                            load: { appState.loadTranscriptionKey(for: profile.transcriptionBackend) },
+                            save: { appState.saveTranscriptionKey($0, for: profile.transcriptionBackend) }
                         )
                     }
                 } footer: {
@@ -116,9 +119,13 @@ struct OnboardingView: View {
             HStack(spacing: 8) {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(Color.success)
-                Text("You're set. Hold")
-                KeyCap(label: appState.config.hotkey.displayName)
-                Text("anywhere and speak.")
+                if let hotkey = profile.hotkey {
+                    Text("You're set. Hold")
+                    HotkeyCaps(spec: hotkey)
+                    Text("anywhere and speak.")
+                } else {
+                    Text("You're set. Choose your push-to-talk keys in Settings.")
+                }
                 Spacer()
                 Button("Done") { onDone() }
                     .keyboardShortcut(.defaultAction)
@@ -141,7 +148,7 @@ struct OnboardingView: View {
     }
 
     private var transcriptionFooter: String {
-        switch appState.config.transcriptionBackend {
+        switch profile.transcriptionBackend {
         case .openAIRealtime:
             "Fastest and most accurate. Your key stays in the macOS Keychain."
         case .deepgram:

@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class SettingsWindowController {
     private var window: NSWindow?
+    private var closeObserver: NSObjectProtocol?
 
     func show(appState: AppState) {
         if window == nil {
@@ -16,12 +17,23 @@ final class SettingsWindowController {
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
             window.toolbarStyle = .unified
             // The bridged title only arrives on a pane change; seed the first.
-            window.title = SettingsPane.general.title
+            window.title = "General"
             window.setContentSize(NSSize(width: 720, height: 540))
             window.contentMinSize = NSSize(width: 640, height: 440)
             window.isReleasedWhenClosed = false
             window.center()
             self.window = window
+            closeObserver = NotificationCenter.default.addObserver(
+                forName: NSWindow.willCloseNotification,
+                object: window,
+                queue: .main
+            ) { [weak appState] _ in
+                MainActor.assumeIsolated {
+                    // A key recording left open must not keep push-to-talk paused.
+                    HotkeyRecorder.cancelActive()
+                    appState?.setHotkeysSuspended(false)
+                }
+            }
         }
 
         NSApp.activate(ignoringOtherApps: true)

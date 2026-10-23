@@ -4,6 +4,7 @@ import SwiftUI
 /// State reads through shape and motion rather than labels — bars that
 /// follow your voice while listening, a light sweeping across resting dots
 /// while the text is finalized and polished, a short message on error.
+/// With several profiles, the dictating profile's name sits before the bars.
 struct OverlayView: View {
     @ObservedObject var model: OverlayModel
 
@@ -28,6 +29,7 @@ private struct OverlayCapsule: View {
     private static let fill = Color(red: 0.035, green: 0.035, blue: 0.045)
     private static let errorTint = Color(red: 1.0, green: 0.45, blue: 0.40)
     private static let transcriptWidth: CGFloat = 300
+    private static let profileNameWidth: CGFloat = 120
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -51,6 +53,15 @@ private struct OverlayCapsule: View {
             EmptyView()
 
         case .listening, .finalizing, .refining:
+            if let profileName = model.profileName {
+                Text(verbatim: profileName)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .lineLimit(1)
+                    // Hugs short names; long ones truncate at the cap.
+                    .frame(maxWidth: Self.profileNameWidth)
+                    .fixedSize()
+            }
             LevelBars(levels: model.levels, isThinking: model.phase != .listening)
             if showsTranscript {
                 Text(verbatim: model.text)

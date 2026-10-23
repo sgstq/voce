@@ -12,8 +12,10 @@ final class AppState: ObservableObject {
     @Published private(set) var keychainMessage: String?
     @Published private(set) var launchAtLogin = SMAppService.mainApp.status == .enabled
     @Published private(set) var launchAtLoginNotice: String?
-    /// The selected backend needs an API key and none is stored.
+    /// Profile 1's backend needs an API key and none is stored.
     @Published private(set) var transcriptionKeyMissing = false
+    /// A just-added profile whose page should start recording its keys.
+    @Published var profileAwaitingKeys: UUID?
 
     let dictation: DictationCoordinator
 
@@ -100,7 +102,12 @@ final class AppState: ObservableObject {
         }
         switch dictation.phase {
         case .idle:
-            return needsSetup ? "Voce needs a few things to start" : "Hold \(config.hotkey.displayName) to dictate"
+            if needsSetup { return "Voce needs a few things to start" }
+            let active = config.activeProfiles
+            if active.count > 1 { return "Hold a profile's keys to dictate" }
+            if let hotkey = active.first?.hotkey { return "Hold \(hotkey.displayName) to dictate" }
+            if config.profiles.allSatisfy({ !$0.isEnabled }) { return "Every profile is off" }
+            return "Set push-to-talk keys in Settings"
         case .recording:
             return "Listening…"
         case .finalizing:
@@ -123,10 +130,10 @@ final class AppState: ObservableObject {
         update(&config)
         configBox.value = config
         saveConfig()
-        if config.hotkey != previous.hotkey {
-            dictation.restartHotkeyIfNeeded()
+        if config.hotkeyBindings != previous.hotkeyBindings {
+            dictation.updateHotkeyBindings()
         }
-        if config.transcriptionBackend != previous.transcriptionBackend {
+        if config.primaryProfile.transcriptionBackend != previous.primaryProfile.transcriptionBackend {
             refreshKeyState()
         }
         if config.theme != previous.theme {
@@ -147,8 +154,51 @@ final class AppState: ObservableObject {
         }
     }
 
+    // MARK: Profiles
+
+    func updateProfile(_ id: UUID, _ update: (inout DictationProfile) -> Void) {
+        guard let index = config.profiles.firstIndex(where: { $0.id == id }) else { return }
+        updateConfig { update(&$0.profiles[index]) }
+    }
+
+    /// Adds a copy of profile 1 with no keys, so its engine and API keys
+    /// already work; its page then asks for keys straight away.
+    @discardableResult
+    func addProfile() -> UUID {
+        var profile = config.primaryProfile
+        profile.id = UUID()
+        profile.name = "Profile \(config.profiles.count + 1)"
+        profile.isEnabled = true
+        profile.hotkey = nil
+        updateConfig { $0.profiles.append(profile) }
+        profileAwaitingKeys = profile.id
+        return profile.id
+    }
+
+    /// Profile 1 stays: onboarding and the setup badge rely on it.
+    func removeProfile(_ id: UUID) {
+        guard config.profiles.first?.id != id else { return }
+        updateConfig { $0.profiles.removeAll { $0.id == id } }
+    }
+
+    /// Why `spec` can't be used by profile `id`, or nil when it can. A
+    /// profile that is off keeps its keys, so turning it back on never clashes.
+    func hotkeyConflict(for spec: HotkeySpec, profile id: UUID) -> String? {
+        guard let owner = config.profiles.first(where: { $0.id != id && $0.hotkey?.keys == spec.keys }) else {
+            return nil
+        }
+        let ownerName = owner.displayName.map { "“\($0)”" } ?? "another profile"
+        let state = owner.isEnabled ? "" : ", which is off"
+        return "\(spec.displayName) is already used by \(ownerName)\(state)."
+    }
+
+    /// Settings pauses push-to-talk while it records new keys.
+    func setHotkeysSuspended(_ suspended: Bool) {
+        dictation.setHotkeysSuspended(suspended)
+    }
+
     private func refreshKeyState() {
-        guard let account = config.transcriptionBackend.keychainAccount else {
+        guard let account = config.primaryProfile.transcriptionBackend.keychainAccount else {
             transcriptionKeyMissing = false
             return
         }
@@ -230,37 +280,36 @@ final class AppState: ObservableObject {
         refreshKeyState()
     }
 
-    /// State of the on-device speech model for the configured language.
-    /// Nil while a refresh is in flight ("Checking…" in Settings).
-    @Published private(set) var appleSpeechModelState: AppleSpeechAssets.ModelState?
-    private var appleSpeechTask: Task<Void, Never>?
+    /// State of the on-device speech model per language, since profiles can
+    /// dictate in different ones. Missing while a refresh is in flight
+    /// ("Checking…" in Settings).
+    @Published private(set) var appleSpeechModelStates: [String: AppleSpeechAssets.ModelState] = [:]
+    private var appleSpeechTasks: [String: Task<Void, Never>] = [:]
 
-    func refreshAppleSpeechModel() {
-        appleSpeechTask?.cancel()
-        appleSpeechModelState = nil
-        let language = config.language
-        appleSpeechTask = Task { [weak self] in
+    func refreshAppleSpeechModel(language: String) {
+        appleSpeechTasks[language]?.cancel()
+        appleSpeechModelStates[language] = nil
+        appleSpeechTasks[language] = Task { [weak self] in
             let state = await AppleSpeechAssets.state(for: language)
             guard !Task.isCancelled else { return }
-            self?.appleSpeechModelState = state
+            self?.appleSpeechModelStates[language] = state
         }
     }
 
-    func downloadAppleSpeechModel() {
-        appleSpeechTask?.cancel()
-        appleSpeechModelState = .downloading
-        let language = config.language
-        appleSpeechTask = Task { [weak self] in
+    func downloadAppleSpeechModel(language: String) {
+        appleSpeechTasks[language]?.cancel()
+        appleSpeechModelStates[language] = .downloading
+        appleSpeechTasks[language] = Task { [weak self] in
             do {
                 try await AppleSpeechAssets.download(for: language)
             } catch {
                 guard !Task.isCancelled else { return }
-                self?.appleSpeechModelState = .failed(error.localizedDescription)
+                self?.appleSpeechModelStates[language] = .failed(error.localizedDescription)
                 return
             }
             let state = await AppleSpeechAssets.state(for: language)
             guard !Task.isCancelled else { return }
-            self?.appleSpeechModelState = state
+            self?.appleSpeechModelStates[language] = state
         }
     }
 

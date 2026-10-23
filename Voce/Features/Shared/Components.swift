@@ -51,6 +51,18 @@ extension AppState {
         )
     }
 
+    /// Two-way binding to one field of a profile; writes persist immediately.
+    func binding<Value>(profile id: UUID, _ keyPath: WritableKeyPath<DictationProfile, Value>) -> Binding<Value> {
+        Binding(
+            get: { (self.config.profile(id: id) ?? self.config.primaryProfile)[keyPath: keyPath] },
+            set: { value in
+                self.updateProfile(id) { profile in
+                    profile[keyPath: keyPath] = value
+                }
+            }
+        )
+    }
+
     /// Accessibility has no change notification, so windows that show
     /// permission status re-check once a second while they are open.
     func watchPermissions() async {
@@ -79,23 +91,44 @@ struct KeyCap: View {
     }
 }
 
-/// Shows the push-to-talk key and records a new one in place.
+/// One keycap per key of a combination: [⇧] [Right ⌥].
+struct HotkeyCaps: View {
+    let spec: HotkeySpec
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(Array(spec.keyNames.enumerated()), id: \.offset) { _, name in
+                KeyCap(label: name)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spec.displayName)
+    }
+}
+
+/// Shows a profile's push-to-talk keys and records new ones in place.
 struct HotkeyField: View {
-    @ObservedObject var appState: AppState
+    let spec: HotkeySpec?
     @ObservedObject var recorder: HotkeyRecorder
+    /// Why the keys can't be used, or nil to accept them.
+    let validate: @MainActor (HotkeySpec) -> String?
+    let onCapture: @MainActor (HotkeySpec) -> Void
 
     var body: some View {
         HStack(spacing: 10) {
             if recorder.isRecording {
-                Text("Press a key…")
+                Text("Press and release keys…")
                     .foregroundStyle(.secondary)
                 Button("Cancel") { recorder.cancel() }
             } else {
-                KeyCap(label: appState.config.hotkey.displayName)
-                Button("Change…") {
-                    recorder.begin { spec in
-                        appState.updateConfig { $0.hotkey = spec }
-                    }
+                if let spec {
+                    HotkeyCaps(spec: spec)
+                } else {
+                    Text("No keys")
+                        .foregroundStyle(.secondary)
+                }
+                Button(spec == nil ? "Set Keys…" : "Change…") {
+                    recorder.begin(validate: validate, onCapture: onCapture)
                 }
             }
         }
