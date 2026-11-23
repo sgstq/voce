@@ -23,6 +23,11 @@ final class DictationCoordinator: ObservableObject {
 
     private static let log = Logger(subsystem: "com.sgstq.voce", category: "dictation")
 
+    private struct Snapshot {
+        let config: AppConfig
+        let profile: DictationProfile
+    }
+
     private static let completionTimeout: Duration = .seconds(10)
     private static let errorDisplayTime: Duration = .seconds(3)
 
@@ -35,6 +40,14 @@ final class DictationCoordinator: ObservableObject {
     private let refinementKeyProvider: @MainActor (RefinementProvider) throws -> String?
 
     private var hotkey: HotkeyMonitor?
+    private var hotkeysSuspended = false
+    /// Mic audio captured while the held keys may still grow into a longer
+    /// combination (⌥ on the way to ⌥ + ⇧), so no word is lost while the
+    /// profile settles.
+    private var armedChunks: AsyncStream<Data>?
+    /// What the current dictation runs with, frozen at key-down: settings
+    /// edited mid-dictation apply to the next one.
+    private var snapshot: Snapshot?
     private var session: (any TranscriptionSession)?
     private var eventTask: Task<Void, Never>?
     private var audioTask: Task<Void, Never>?
@@ -60,92 +73,89 @@ final class DictationCoordinator: ObservableObject {
 
     var isHotkeyRunning: Bool { hotkey?.isRunning ?? false }
 
-    // MARK: Hotkey lifecycle
-
-    func startHotkey() {
-        stopHotkey()
-        let monitor = HotkeyMonitor(
-            spec: configProvider().hotkey,
-            onPress: { [weak self] in self?.beginDictation() },
-            onRelease: { [weak self] in self?.endDictation() }
-        )
-        do {
-            try monitor.start()
-            hotkey = monitor
-            hotkeyError = nil
-        } catch {
-            hotkeyError = error.localizedDescription
-        }
-    }
-
-    func stopHotkey() {
-        hotkey?.stop()
-        hotkey = nil
-    }
-
-    /// Re-registers the tap after a config change or once Accessibility is granted.
-    func restartHotkeyIfNeeded() {
-        startHotkey()
-    }
-
     // MARK: Dictation loop
 
-    private func beginDictation() {
+    private func beginDictation(profileID: UUID) {
         guard phase == .idle else { return }
 
         let config = configProvider()
-        let backend = config.transcriptionBackend
-        var apiKey = ""
-        if backend.keychainAccount != nil {
-            let stored = (try? apiKeyProvider(backend)) ?? nil
-            guard let stored, !stored.isEmpty else {
-                Self.log.warning("begin: no API key configured for \(backend.rawValue, privacy: .public)")
-                showTransientError("Add your \(backend.keyLabel) API key in Settings")
-                return
-            }
-            apiKey = stored
+        guard let profile = config.profile(id: profileID) else {
+            disarmCapture()
+            return
         }
-        Self.log.notice("begin: backend=\(backend.rawValue, privacy: .public) insertion=\(config.insertionMode.rawValue, privacy: .public)")
+        let backend = profile.transcriptionBackend
+        guard let apiKey = transcriptionKey(for: backend) else {
+            disarmCapture()
+            showTransientError("Add your \(backend.keyLabel) API key in Settings")
+            return
+        }
+        Self.log.notice(
+            "begin: profile=\(profile.name, privacy: .public) backend=\(backend.rawValue, privacy: .public) insertion=\(config.insertionMode.rawValue, privacy: .public)"
+        )
 
         transcript = ""
         speech = SpeechGate()
         heardLiveText = false
         releaseContext = nil
         errorDismissTask?.cancel()
+        snapshot = Snapshot(config: config, profile: profile)
 
-        let session = backend.makeSession(config: config, apiKey: apiKey)
+        let session = backend.makeSession(profile: profile, apiKey: apiKey)
         self.session = session
 
         let chunks: AsyncStream<Data>
-        do {
-            chunks = try audio.start()
-        } catch {
-            self.session = nil
-            Self.log.error("begin: audio start failed: \(error.localizedDescription, privacy: .public)")
-            showTransientError("Microphone failed: \(error.localizedDescription)")
-            return
+        if let armed = armedChunks {
+            chunks = armed
+            armedChunks = nil
+        } else {
+            do {
+                chunks = try audio.start()
+            } catch {
+                self.session = nil
+                Self.log.error("begin: audio start failed: \(error.localizedDescription, privacy: .public)")
+                showTransientError("Microphone failed: \(error.localizedDescription)")
+                return
+            }
         }
 
         phase = .recording
         overlay.model.phase = .listening
         overlay.model.showsTranscript = config.showLiveTranscript
+        // The name only helps tell profiles apart.
+        overlay.model.profileName = config.activeProfiles.count > 1 ? profile.displayName : nil
         overlay.model.updateLiveText("")
         overlay.model.resetLevels()
         overlay.show()
 
         // Warm the refinement path while the user is still speaking so TLS
         // handshakes / model loading never sit inside the "Polishing…" wait.
-        if config.refinementEnabled {
-            refiner.prewarm(provider: config.refinementProvider)
+        if profile.refinementEnabled {
+            refiner.prewarm(provider: profile.refinementProvider)
         }
 
         // Screen context rides the same trick: capture + OCR run while the
         // user speaks, so the text is ready by refinement time (the service
         // caps itself and returns nil when late or unavailable).
-        if config.refinementEnabled, config.screenContext != .off {
+        if profile.refinementEnabled, profile.screenContext != .off {
             screenContextTask = Task { await ScreenContextService.captureWindowText() }
         }
 
+        stream(chunks, to: session)
+    }
+
+    /// The stored key for `backend`, "" for backends that need none, or nil
+    /// when a needed key is missing.
+    private func transcriptionKey(for backend: TranscriptionBackend) -> String? {
+        guard backend.keychainAccount != nil else { return "" }
+        let stored = (try? apiKeyProvider(backend)) ?? nil
+        guard let stored, !stored.isEmpty else {
+            Self.log.warning("begin: no API key configured for \(backend.rawValue, privacy: .public)")
+            return nil
+        }
+        return stored
+    }
+
+    private func stream(_ chunks: AsyncStream<Data>, to session: any TranscriptionSession) {
         Task { await session.start() }
 
         // Single consumer keeps audio chunks ordered end-to-end.
@@ -167,7 +177,7 @@ final class DictationCoordinator: ObservableObject {
     }
 
     private func endDictation() {
-        guard phase == .recording, let session else {
+        guard phase == .recording, let session, let snapshot else {
             return
         }
 
@@ -190,12 +200,12 @@ final class DictationCoordinator: ObservableObject {
         // Snapshot what we're dictating into at the moment of release — the
         // refiner uses the surrounding text; the insertion guard uses the
         // app identity.
-        releaseContext = FocusContextCapture.capture(includeText: configProvider().captureContext)
+        releaseContext = FocusContextCapture.capture(includeText: snapshot.profile.captureContext)
 
         Task { await session.commit() }
 
         // File-based backends upload after release: add half a second per spoken second.
-        let uploadAllowance = configProvider().transcriptionBackend.uploadsOnRelease ? duration / 2 : 0
+        let uploadAllowance = snapshot.profile.transcriptionBackend.uploadsOnRelease ? duration / 2 : 0
         timeoutTask = Task { [weak self] in
             try? await Task.sleep(for: Self.completionTimeout + .seconds(uploadAllowance))
             guard !Task.isCancelled, self?.phase == .finalizing else { return }
@@ -271,12 +281,13 @@ final class DictationCoordinator: ObservableObject {
         // Single-delivery gate: a transcript can be delivered by .completed,
         // a trailing .closed, .failed-with-partial, or the timeout — only the
         // first one may insert. .refining marks "already delivered".
-        guard phase == .recording || phase == .finalizing else { return }
+        guard phase == .recording || phase == .finalizing, let snapshot else { return }
         phase = .refining
         audio.stop()
 
         let rawText = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let config = configProvider()
+        let profile = snapshot.profile
+        let insertionMode = snapshot.config.insertionMode
         let context = releaseContext ?? FocusContext()
 
         // Detach the screen-context capture before cleanup cancels it — the
@@ -293,15 +304,15 @@ final class DictationCoordinator: ObservableObject {
             return
         }
 
-        let provider = config.refinementProvider
+        let provider = profile.refinementProvider
         let refinementKey = ((try? refinementKeyProvider(provider)) ?? nil) ?? ""
         let cloudKeyMissing = provider.isCloud && refinementKey.isEmpty
-        guard config.refinementEnabled, !cloudKeyMissing else {
-            if config.refinementEnabled, cloudKeyMissing {
+        guard profile.refinementEnabled, !cloudKeyMissing else {
+            if profile.refinementEnabled, cloudKeyMissing {
                 Self.log.warning("refinement skipped: no API key for \(provider.rawValue, privacy: .public)")
             }
             screenTask?.cancel()
-            insertAfterGuard(rawText, mode: config.insertionMode, context: context)
+            insertAfterGuard(rawText, mode: insertionMode, context: context)
             return
         }
 
@@ -309,10 +320,11 @@ final class DictationCoordinator: ObservableObject {
         let refiner = self.refiner
         Task { [weak self] in
             var context = context
-            if config.screenContext != .off, let windowText = await screenTask?.value {
-                context.addScreenText(windowText, mode: config.screenContext)
+            if profile.screenContext != .off, let windowText = await screenTask?.value {
+                context.addScreenText(windowText, mode: profile.screenContext)
+                let mode = profile.screenContext.rawValue
                 Self.log.notice(
-                    "screen context: mode=\(config.screenContext.rawValue, privacy: .public) terms=\(context.screenVocabulary.count) text.len=\(context.screenText.count)"
+                    "screen context: mode=\(mode, privacy: .public) terms=\(context.screenVocabulary.count) text.len=\(context.screenText.count)"
                 )
             }
 
@@ -323,15 +335,15 @@ final class DictationCoordinator: ObservableObject {
                     transcript: rawText,
                     context: context,
                     provider: provider,
-                    model: config.refinementModel,
+                    model: profile.refinementModel,
                     apiKey: refinementKey,
-                    language: config.language
+                    language: profile.language
                 )
             } catch {
                 Self.log.error("refinement failed, using raw: \(error.localizedDescription, privacy: .public)")
                 notice = Refiner.failureNotice(for: error, provider: provider)
             }
-            self?.insertAfterGuard(finalText, mode: config.insertionMode, context: context, notice: notice)
+            self?.insertAfterGuard(finalText, mode: insertionMode, context: context, notice: notice)
         }
     }
 
@@ -405,5 +417,98 @@ final class DictationCoordinator: ObservableObject {
             guard !Task.isCancelled, let self, self.phase == .idle else { return }
             self.overlay.hide()
         }
+    }
+}
+
+// MARK: Hotkey lifecycle
+
+extension DictationCoordinator {
+    func startHotkey() {
+        stopHotkey()
+        guard !hotkeysSuspended else { return }
+        let monitor = HotkeyMonitor(bindings: configProvider().hotkeyBindings) { [weak self] event in
+            self?.handleHotkey(event)
+        }
+        do {
+            try monitor.start()
+            hotkey = monitor
+            hotkeyError = nil
+        } catch {
+            hotkeyError = error.localizedDescription
+        }
+    }
+
+    func stopHotkey() {
+        hotkey?.stop()
+        hotkey = nil
+        disarmCapture()
+    }
+
+    /// Re-registers the tap once Accessibility is granted.
+    func restartHotkeyIfNeeded() {
+        startHotkey()
+    }
+
+    /// Picks up changed profile keys without dropping a held key's release.
+    func updateHotkeyBindings() {
+        guard !hotkeysSuspended else { return }
+        guard let hotkey, hotkey.isRunning else {
+            startHotkey()
+            return
+        }
+        hotkey.update(bindings: configProvider().hotkeyBindings)
+    }
+
+    /// Settings pauses every profile's keys while it records new ones, so the
+    /// keys being assigned don't also start a dictation.
+    func setHotkeysSuspended(_ suspended: Bool) {
+        guard suspended != hotkeysSuspended else { return }
+        hotkeysSuspended = suspended
+        if suspended {
+            stopHotkey()
+        } else {
+            startHotkey()
+        }
+    }
+
+    private func handleHotkey(_ event: HotkeyEvent) {
+        switch event {
+        case .armed:
+            armCapture()
+        case .pressed(let profileID):
+            beginDictation(profileID: profileID)
+        case .released(let profileID):
+            if snapshot?.profile.id == profileID {
+                endDictation()
+            }
+        case .interrupted(let profileID):
+            cancelForShortcut(profileID: profileID)
+        case .cancelled:
+            disarmCapture()
+        }
+    }
+
+    private func armCapture() {
+        guard phase == .idle, armedChunks == nil else { return }
+        // A failure here resurfaces, with its message, when the dictation
+        // begins and starts the mic itself.
+        armedChunks = try? audio.start()
+    }
+
+    private func disarmCapture() {
+        guard armedChunks != nil else { return }
+        audio.stop()
+        armedChunks = nil
+    }
+
+    /// Another key joined the held ones: a shortcut such as ⌥E, not a
+    /// dictation. Once speech was heard the key is ignored instead, so a
+    /// stray press never throws away what was said.
+    private func cancelForShortcut(profileID: UUID) {
+        guard phase == .recording, snapshot?.profile.id == profileID,
+              speech.verdict(heardLiveText: heardLiveText) != .speech else { return }
+        Self.log.notice("cancel: another key joined the push-to-talk keys")
+        overlay.hide()
+        cancelDictation()
     }
 }

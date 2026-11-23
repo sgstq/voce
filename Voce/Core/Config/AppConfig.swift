@@ -1,64 +1,52 @@
 import Foundation
 
+/// Everything Voce remembers outside the Keychain: the dictation profiles
+/// and the settings every profile shares.
 struct AppConfig: Codable, Equatable {
-    var hotkey: HotkeySpec
-    var language: String
+    /// Never empty. The first profile is the one onboarding sets up.
+    var profiles: [DictationProfile]
     var insertionMode: InsertionMode
-    var transcriptionBackend: TranscriptionBackend
-    var realtimeModel: String
-    var realtimeDelay: RealtimeDelay
-    var deepgramModel: String
-    var openRouterModel: String
-    var refinementEnabled: Bool
-    var refinementProvider: RefinementProvider
-    var refinementModel: String
     var theme: AppTheme
     var accent: AccentColor
-    var captureContext: Bool
-    var screenContext: ScreenContextMode
     var showLiveTranscript: Bool
 
     init(
-        hotkey: HotkeySpec = .defaultPushToTalk,
-        language: String = "en",
+        profiles: [DictationProfile] = [DictationProfile()],
         insertionMode: InsertionMode = .auto,
-        transcriptionBackend: TranscriptionBackend = .openAIRealtime,
-        realtimeModel: String = "gpt-realtime-whisper",
-        realtimeDelay: RealtimeDelay = .low,
-        deepgramModel: String = "nova-3",
-        openRouterModel: String = "microsoft/mai-transcribe-2",
-        refinementEnabled: Bool = true,
-        refinementProvider: RefinementProvider = .openAI,
-        refinementModel: String = "gpt-5-mini",
         theme: AppTheme = .system,
         accent: AccentColor = .system,
-        captureContext: Bool = true,
-        screenContext: ScreenContextMode = .off,
         showLiveTranscript: Bool = false
     ) {
-        self.hotkey = hotkey
-        self.language = language
+        self.profiles = profiles.isEmpty ? [DictationProfile()] : profiles
         self.insertionMode = insertionMode
-        self.transcriptionBackend = transcriptionBackend
-        self.realtimeModel = realtimeModel
-        self.realtimeDelay = realtimeDelay
-        self.deepgramModel = deepgramModel
-        self.openRouterModel = openRouterModel
-        self.refinementEnabled = refinementEnabled
-        self.refinementProvider = refinementProvider
-        self.refinementModel = refinementModel
         self.theme = theme
         self.accent = accent
-        self.captureContext = captureContext
-        self.screenContext = screenContext
         self.showLiveTranscript = showLiveTranscript
     }
 
+    var primaryProfile: DictationProfile {
+        get { profiles[0] }
+        set { profiles[0] = newValue }
+    }
+
+    func profile(id: UUID) -> DictationProfile? {
+        profiles.first { $0.id == id }
+    }
+
+    /// Profiles that dictate when their keys are held: switched on, with keys.
+    var activeProfiles: [DictationProfile] {
+        profiles.filter { $0.isEnabled && $0.hotkey != nil }
+    }
+
+    /// What the hotkey monitor listens for.
+    var hotkeyBindings: [HotkeyBinding] {
+        activeProfiles.compactMap { profile in
+            profile.hotkey.map { HotkeyBinding(id: profile.id, keys: $0.keys) }
+        }
+    }
+
     private enum CodingKeys: String, CodingKey {
-        case hotkey, language, insertionMode, transcriptionBackend
-        case realtimeModel, realtimeDelay, deepgramModel, openRouterModel
-        case refinementEnabled, refinementProvider, refinementModel
-        case theme, accent, captureContext, screenContext, showLiveTranscript
+        case profiles, insertionMode, theme, accent, showLiveTranscript
     }
 
     /// Tolerant decoding: every missing key falls back to its default, so
@@ -66,22 +54,19 @@ struct AppConfig: Codable, Equatable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let defaults = AppConfig()
-        self.hotkey = try container.decodeIfPresent(HotkeySpec.self, forKey: .hotkey) ?? defaults.hotkey
-        self.language = try container.decodeIfPresent(String.self, forKey: .language) ?? defaults.language
+        if let profiles = try container.decodeIfPresent([DictationProfile].self, forKey: .profiles), !profiles.isEmpty {
+            self.profiles = profiles
+        } else {
+            // Before profiles, one profile's settings sat at the top level
+            // under the same keys; they become profile 1.
+            var migrated = try DictationProfile(from: decoder)
+            migrated.id = DictationProfile.migratedID
+            migrated.hotkey = migrated.hotkey ?? .defaultPushToTalk
+            self.profiles = [migrated]
+        }
         self.insertionMode = try container.decodeIfPresent(InsertionMode.self, forKey: .insertionMode) ?? defaults.insertionMode
-        self.transcriptionBackend = try container.decodeIfPresent(TranscriptionBackend.self, forKey: .transcriptionBackend) ?? defaults.transcriptionBackend
-        self.realtimeModel = try container.decodeIfPresent(String.self, forKey: .realtimeModel) ?? defaults.realtimeModel
-        self.realtimeDelay = try container.decodeIfPresent(RealtimeDelay.self, forKey: .realtimeDelay) ?? defaults.realtimeDelay
-        self.deepgramModel = try container.decodeIfPresent(String.self, forKey: .deepgramModel) ?? defaults.deepgramModel
-        self.openRouterModel = try container.decodeIfPresent(String.self, forKey: .openRouterModel) ?? defaults.openRouterModel
-        self.refinementEnabled = try container.decodeIfPresent(Bool.self, forKey: .refinementEnabled) ?? defaults.refinementEnabled
-        self.refinementProvider = try container.decodeIfPresent(RefinementProvider.self, forKey: .refinementProvider) ?? defaults.refinementProvider
-        let refinementModel = try container.decodeIfPresent(String.self, forKey: .refinementModel) ?? defaults.refinementModel
-        self.refinementModel = refinementProvider.replacement(forRetiredModel: refinementModel) ?? refinementModel
         self.theme = try container.decodeIfPresent(AppTheme.self, forKey: .theme) ?? defaults.theme
         self.accent = try container.decodeIfPresent(AccentColor.self, forKey: .accent) ?? defaults.accent
-        self.captureContext = try container.decodeIfPresent(Bool.self, forKey: .captureContext) ?? defaults.captureContext
-        self.screenContext = try container.decodeIfPresent(ScreenContextMode.self, forKey: .screenContext) ?? defaults.screenContext
         self.showLiveTranscript = try container.decodeIfPresent(Bool.self, forKey: .showLiveTranscript) ?? defaults.showLiveTranscript
     }
 }

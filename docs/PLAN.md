@@ -25,6 +25,11 @@ _Superseded by `docs/DESIGN.md`_: market research pointed to a small HUD capsule
 ### Phase 4 — Local + ship
 Local speech fallback (prefer macOS 26 `SpeechAnalyzer` / `SpeechTranscriber`; use whisper.cpp only if Apple Speech quality, language coverage, or availability is insufficient); diagnostics; launch-at-login; notarized DMG in CI.
 
+## Roadmap (not built)
+- **Voce service** — the next big release. Users who want it dictate through Voce's own backend: no accounts with speech or AI providers and no API keys to paste. Bring-your-own-keys stays as an option for everyone else.
+- **Profiles per app** — optionally tie a profile to apps, so dictating into a given app picks its profile automatically. Profiles already carry stable ids for this.
+- **Profiles behind a paywall (probably)** — profiles are unlimited for now; a later release will likely make them part of a paid plan.
+
 ## Rust → native component map
 | Concern | Old (Rust) | Native replacement |
 |---|---|---|

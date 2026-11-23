@@ -9,6 +9,30 @@ enum KeyCodes {
 
     static let capsLock: UInt16 = 57
     static let escape: UInt16 = 53
+    static let function: UInt16 = 63
+
+    /// Menu order for modifiers (Fn ⌃ ⌥ ⇧ ⌘, left before right), so a
+    /// combination always reads the same however it was pressed.
+    private static let modifierOrder: [UInt16] = [63, 59, 62, 58, 61, 56, 60, 55, 54]
+
+    /// Device-dependent flag bit for each side of each modifier
+    /// (NX_DEVICE…KEYMASK in IOLLEvent.h). The generic flags are set for
+    /// either side, so they can't tell a Right ⌥ release while Left ⌥ is
+    /// still down. Fn has a single key and uses `.maskSecondaryFn`.
+    private static let sideMasks: [UInt16: UInt64] = [
+        59: 0x0000_0001, // ⌃
+        56: 0x0000_0002, // ⇧
+        60: 0x0000_0004, // Right ⇧
+        55: 0x0000_0008, // ⌘
+        54: 0x0000_0010, // Right ⌘
+        58: 0x0000_0020, // ⌥
+        61: 0x0000_0040, // Right ⌥
+        62: 0x0000_2000, // Right ⌃
+    ]
+
+    static func isModifier(_ keyCode: UInt16) -> Bool {
+        modifierKeyCodes.contains(keyCode)
+    }
 
     /// The CGEvent flag that tells press from release for a modifier key.
     static func modifierMask(for keyCode: UInt16) -> CGEventFlags? {
@@ -22,20 +46,51 @@ enum KeyCodes {
         }
     }
 
-    /// NSEvent equivalent, used by the settings recorder.
-    static func nsModifier(for keyCode: UInt16) -> NSEvent.ModifierFlags? {
-        switch keyCode {
-        case 54, 55: .command
-        case 56, 60: .shift
-        case 58, 61: .option
-        case 59, 62: .control
-        case 63: .function
-        default: nil
+    /// The modifier keys physically down, per side, read from a raw CGEvent
+    /// or NSEvent flags word. `changedKeyCode` is the modifier behind a
+    /// flags-changed event: a keyboard that reports no side bits for it
+    /// (some virtual keyboards do) falls back to the generic flag.
+    static func heldModifiers(rawFlags: UInt64, changedKeyCode: UInt16? = nil) -> Set<UInt16> {
+        var held = Set<UInt16>()
+        for (keyCode, bit) in sideMasks where rawFlags & bit != 0 {
+            held.insert(keyCode)
         }
+        if rawFlags & CGEventFlags.maskSecondaryFn.rawValue != 0 {
+            held.insert(function)
+        }
+        if let changedKeyCode, changedKeyCode != function,
+           let generic = modifierMask(for: changedKeyCode) {
+            let familyBits = sideMasks
+                .filter { modifierMask(for: $0.key) == generic }
+                .values
+                .reduce(0, |)
+            if rawFlags & familyBits == 0, rawFlags & generic.rawValue != 0 {
+                held.insert(changedKeyCode)
+            }
+        }
+        return held
+    }
+
+    /// Modifiers first in menu order, then any other key.
+    static func sorted(_ keyCodes: Set<UInt16>) -> [UInt16] {
+        let modifiers = modifierOrder.filter(keyCodes.contains)
+        let others = keyCodes.subtracting(modifierKeyCodes).sorted()
+        return modifiers + others
     }
 
     static func displayName(for keyCode: UInt16) -> String {
         names[keyCode] ?? "Key \(keyCode)"
+    }
+
+    /// Prefers the table; otherwise the character the key types on the
+    /// current layout ("D", "7"), which the table can't know.
+    static func displayName(for keyCode: UInt16, characters: String?) -> String {
+        if let name = names[keyCode] { return name }
+        let typed = (characters ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        if !typed.isEmpty, typed.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) }) {
+            return typed
+        }
+        return displayName(for: keyCode)
     }
 
     /// Lowercased legacy config names ("f5", "fn") → key code.

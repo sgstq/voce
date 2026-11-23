@@ -16,6 +16,8 @@ final class OverlayModel: ObservableObject {
     @Published var text: String = ""
     /// Opt-in: show the streaming transcript beside the level bars.
     @Published var showsTranscript = false
+    /// The dictating profile's name; set only when there are several.
+    @Published var profileName: String?
     /// Drives the entrance/exit animation; the controller owns it so the
     /// panel is on screen before the capsule animates in.
     @Published fileprivate(set) var isPresented = false
@@ -132,6 +134,7 @@ final class OverlayController {
             // they keep ticking (and burning CPU) inside the offscreen window.
             self.model.phase = .hidden
             self.model.text = ""
+            self.model.profileName = nil
             self.model.resetLevels()
         }
     }

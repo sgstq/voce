@@ -23,19 +23,19 @@ What to avoid:
   - Thirteen white bars, tallest in the centre, driven by the real mic level. The newest level sits in the centre and ripples outward. In silence the bars rest as dots.
   - While finalizing or polishing, the bars settle to dots and a light sweeps across them.
   - Errors widen the capsule to show a red-tinted icon and a short sentence.
-  - There are no text labels for state.
+  - There are no text labels for state. With two or more profiles, the dictating profile's name sits before the bars, so a wrong key shows before the first sentence.
   - The live transcript is opt-in (Settings → General). When it is on, it appears as one line with the head truncated, in a fixed-width strip, so the capsule doesn't jitter.
 - **Motion:** springs only. The capsule rises from 60% scale on entry and fades out in about 150ms on exit. Only size changes animate; per-word text updates never do.
 - **Colour:** the overlay is monochrome. The accent defaults to the macOS system accent. The optional accents are muted versions of the system colours, softer still in dark mode, and they tint controls only. The Settings sidebar keeps the native system-accent highlight.
 - **Windows:** native SwiftUI grouped `Form`s everywhere.
-  - Settings is a sidebar window like System Settings: General, Transcription, Polish, Context, Permissions.
+  - Settings is a sidebar window like System Settings: General (settings every profile shares), one page per profile (its name, keys, Transcription, Polish and Context), then Permissions.
   - Advanced fields (model ids, latency) sit in their own section.
   - An API key field shows Save only while it differs from what is stored.
-- **First run:** a welcome window with Microphone, Accessibility and "Transcribe with" in one form.
+- **First run:** a welcome window with Microphone, Accessibility and "Transcribe with" in one form. It sets up profile 1; more profiles are added in Settings.
   - Each step ticks itself off as macOS reports the grant (checked every second while the window is open).
   - It finishes with "Hold [key] anywhere and speak."
   - The menu-bar icon shows a badge and the menu offers "Finish Setting Up…" until setup is done.
-- **Menu:** a status line, then Settings… (⌘,) and Quit. Permission details live in Settings.
+- **Menu:** a status line, each profile with its keys when there are several, then Settings… (⌘,) and Quit. Permission details live in Settings.
 
 ## Next candidates (not built)
 - Esc to cancel while recording.

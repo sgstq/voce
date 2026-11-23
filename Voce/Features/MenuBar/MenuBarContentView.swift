@@ -9,6 +9,13 @@ struct MenuBarContentView: View {
     var body: some View {
         Text(appState.statusLine)
 
+        // With several profiles, which keys start which one.
+        if appState.config.profiles.count > 1 {
+            ForEach(appState.config.profiles) { profile in
+                Text("\(profile.displayName ?? "Untitled") — \(profile.isEnabled ? profile.hotkey?.displayName ?? "no keys" : "off")")
+            }
+        }
+
         if appState.needsSetup {
             Button("Finish Setting Up…") {
                 appState.openOnboarding()

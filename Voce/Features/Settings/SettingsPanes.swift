@@ -2,7 +2,6 @@ import SwiftUI
 
 struct GeneralPane: View {
     @ObservedObject var appState: AppState
-    @StateObject private var hotkeyRecorder = HotkeyRecorder()
 
     var body: some View {
         Form {
@@ -14,18 +13,6 @@ struct GeneralPane: View {
             }
 
             Section {
-                LabeledContent("Push-to-talk key") {
-                    HotkeyField(appState: appState, recorder: hotkeyRecorder)
-                }
-            } footer: {
-                if let notice = hotkeyRecorder.notice {
-                    Text(notice).foregroundStyle(.orange)
-                } else {
-                    Text("Hold the key anywhere to dictate and release to insert. Fn, ⌥ or a spare function key work best — letter keys also type while held.")
-                }
-            }
-
-            Section {
                 Toggle("Show live transcript", isOn: appState.binding(\.showLiveTranscript))
                 Picker("Insert text with", selection: appState.binding(\.insertionMode)) {
                     ForEach(InsertionMode.allCases) { mode in
@@ -33,7 +20,7 @@ struct GeneralPane: View {
                     }
                 }
             } footer: {
-                Text("Auto types the text as keystrokes and never touches your clipboard.")
+                Text("Shared by every profile. Auto types the text as keystrokes and never touches your clipboard.")
             }
 
             Section {
@@ -63,61 +50,142 @@ struct GeneralPane: View {
             }
         }
         .formStyle(.grouped)
-        .onDisappear { hotkeyRecorder.cancel() }
     }
 }
 
-struct TranscriptionPane: View {
+/// Everything one profile does: its name and keys, how it transcribes,
+/// polishes and reads context. API keys are per provider, so editing one
+/// here changes it for every profile on that provider.
+struct ProfilePane: View {
     @ObservedObject var appState: AppState
+    let profileID: UUID
+    @StateObject private var hotkeyRecorder = HotkeyRecorder()
+    @State private var confirmingRemoval = false
 
     var body: some View {
-        Form {
-            Section {
-                Picker("Engine", selection: backendBinding) {
-                    ForEach(TranscriptionBackend.allCases) { backend in
-                        Text(backend.label).tag(backend)
-                    }
+        if let profile = appState.config.profile(id: profileID) {
+            Form {
+                keysSection(profile)
+                TranscriptionSections(appState: appState, profile: profile)
+                PolishSection(appState: appState, profile: profile)
+                ContextSections(appState: appState, profile: profile)
+                if profile.id != appState.config.primaryProfile.id {
+                    removeSection(profile)
                 }
-                Picker("Language", selection: appState.binding(\.language)) {
-                    ForEach(DictationLanguages.pickerOptions(including: appState.config.language), id: \.self) { code in
-                        Text(DictationLanguages.displayName(for: code)).tag(code)
-                    }
-                }
-            } footer: {
-                Text("Automatic detects the spoken language, including switches mid-sentence. The same setting guides Polish.")
             }
-
-            engineSection
-
-            Section("Advanced") {
-                switch appState.config.transcriptionBackend {
-                case .openAIRealtime:
-                    TextField("Model", text: appState.binding(\.realtimeModel))
-                    Picker("Latency", selection: appState.binding(\.realtimeDelay)) {
-                        ForEach(RealtimeDelay.allCases) { delay in
-                            Text(delay.label).tag(delay)
-                        }
-                    }
-                case .deepgram:
-                    TextField("Model", text: appState.binding(\.deepgramModel))
-                case .openRouter:
-                    TextField("Model", text: appState.binding(\.openRouterModel))
-                case .appleOnDevice:
-                    LabeledContent("Model", value: "Apple SpeechAnalyzer")
-                }
+            .formStyle(.grouped)
+            .onAppear(perform: recordKeysIfNew)
+            .onDisappear {
+                hotkeyRecorder.cancel()
+                appState.setHotkeysSuspended(false)
+            }
+            .onChange(of: hotkeyRecorder.isRecording) { _, isRecording in
+                appState.setHotkeysSuspended(isRecording)
             }
         }
-        .formStyle(.grouped)
-        .onAppear { refreshModelIfNeeded() }
-        .onChange(of: appState.config.language) {
-            // The on-device model is per-language; re-check when it changes.
-            refreshModelIfNeeded()
+    }
+
+    private func keysSection(_ profile: DictationProfile) -> some View {
+        Section {
+            Toggle("Use this profile", isOn: appState.binding(profile: profileID, \.isEnabled))
+            TextField("Name", text: appState.binding(profile: profileID, \.name))
+            LabeledContent("Push-to-talk keys") {
+                HotkeyField(
+                    spec: profile.hotkey,
+                    recorder: hotkeyRecorder,
+                    validate: { appState.hotkeyConflict(for: $0, profile: profileID) },
+                    onCapture: { spec in appState.updateProfile(profileID) { $0.hotkey = spec } }
+                )
+            }
+        } footer: {
+            if let notice = hotkeyRecorder.notice {
+                Text(notice).foregroundStyle(.orange)
+            } else if !profile.isEnabled {
+                Text("Off: its keys do nothing until you turn it back on. They stay reserved for this profile.")
+            } else {
+                Text(
+                    "Hold the keys anywhere to dictate and release to insert. Use one key like Right ⌥ or Fn, "
+                        + "or a combination like Right ⌥ + ⇧. Letter keys also type while held."
+                )
+            }
+        }
+    }
+
+    private func removeSection(_ profile: DictationProfile) -> some View {
+        Section {
+            Button("Remove Profile…", role: .destructive) {
+                confirmingRemoval = true
+            }
+            .confirmationDialog(
+                "Remove “\(profile.displayName ?? "Untitled")”?",
+                isPresented: $confirmingRemoval
+            ) {
+                Button("Remove Profile", role: .destructive) {
+                    appState.removeProfile(profileID)
+                }
+            } message: {
+                Text("Its keys stop working. API keys stay in the Keychain for your other profiles.")
+            }
+        }
+    }
+
+    /// A profile added a moment ago asks for its keys right away.
+    private func recordKeysIfNew() {
+        guard appState.profileAwaitingKeys == profileID else { return }
+        appState.profileAwaitingKeys = nil
+        hotkeyRecorder.begin(
+            validate: { appState.hotkeyConflict(for: $0, profile: profileID) },
+            onCapture: { spec in appState.updateProfile(profileID) { $0.hotkey = spec } }
+        )
+    }
+}
+
+private struct TranscriptionSections: View {
+    @ObservedObject var appState: AppState
+    let profile: DictationProfile
+
+    var body: some View {
+        Section {
+            Picker("Engine", selection: appState.binding(profile: profile.id, \.transcriptionBackend)) {
+                ForEach(TranscriptionBackend.allCases) { backend in
+                    Text(backend.label).tag(backend)
+                }
+            }
+            Picker("Language", selection: appState.binding(profile: profile.id, \.language)) {
+                ForEach(DictationLanguages.pickerOptions(including: profile.language), id: \.self) { code in
+                    Text(DictationLanguages.displayName(for: code)).tag(code)
+                }
+            }
+        } header: {
+            Text("Transcription")
+        } footer: {
+            Text("Automatic detects the spoken language, including switches mid-sentence. The same setting guides Polish.")
+        }
+
+        engineSection
+
+        Section("Advanced") {
+            switch profile.transcriptionBackend {
+            case .openAIRealtime:
+                TextField("Model", text: appState.binding(profile: profile.id, \.realtimeModel))
+                Picker("Latency", selection: appState.binding(profile: profile.id, \.realtimeDelay)) {
+                    ForEach(RealtimeDelay.allCases) { delay in
+                        Text(delay.label).tag(delay)
+                    }
+                }
+            case .deepgram:
+                TextField("Model", text: appState.binding(profile: profile.id, \.deepgramModel))
+            case .openRouter:
+                TextField("Model", text: appState.binding(profile: profile.id, \.openRouterModel))
+            case .appleOnDevice:
+                LabeledContent("Model", value: "Apple SpeechAnalyzer")
+            }
         }
     }
 
     @ViewBuilder
     private var engineSection: some View {
-        let backend = appState.config.transcriptionBackend
+        let backend = profile.transcriptionBackend
         if let account = backend.keychainAccount {
             Section {
                 APIKeyField(
@@ -127,55 +195,39 @@ struct TranscriptionPane: View {
                     save: { appState.saveTranscriptionKey($0, for: backend) }
                 )
             } footer: {
-                Text(appState.keychainMessage ?? "Stored in the macOS Keychain, never in a file.")
+                Text(appState.keychainMessage ?? "Stored in the macOS Keychain, never in a file, and shared by every profile that uses \(backend.keyLabel).")
             }
         } else {
+            let state = appState.appleSpeechModelStates[profile.language]
             Section {
                 LabeledContent("On-device model") {
                     HStack(spacing: 10) {
-                        Text(appState.appleSpeechModelState?.label ?? "Checking…")
+                        Text(state?.label ?? "Checking…")
                             .foregroundStyle(.secondary)
-                        if appState.appleSpeechModelState?.offersDownload == true {
-                            Button("Download") { appState.downloadAppleSpeechModel() }
+                        if state?.offersDownload == true {
+                            Button("Download") { appState.downloadAppleSpeechModel(language: profile.language) }
                         }
                     }
                 }
             } footer: {
                 Text("Runs entirely on this Mac — no key, and audio never leaves your computer.")
             }
-        }
-    }
-
-    private func refreshModelIfNeeded() {
-        if appState.config.transcriptionBackend == .appleOnDevice {
-            appState.refreshAppleSpeechModel()
-        }
-    }
-
-    /// Switching to Apple re-checks the on-device model.
-    private var backendBinding: Binding<TranscriptionBackend> {
-        Binding(
-            get: { appState.config.transcriptionBackend },
-            set: { newBackend in
-                appState.updateConfig { $0.transcriptionBackend = newBackend }
-                refreshModelIfNeeded()
+            // The on-device model is per language; re-check when either changes.
+            .task(id: profile.language) {
+                appState.refreshAppleSpeechModel(language: profile.language)
             }
-        )
+        }
     }
 }
 
-struct PolishPane: View {
+private struct PolishSection: View {
     @ObservedObject var appState: AppState
+    let profile: DictationProfile
 
     var body: some View {
-        Form {
-            Section {
-                Toggle("Polish text before inserting", isOn: appState.binding(\.refinementEnabled))
-            } footer: {
-                Text("Fixes punctuation, drops filler words and matches the style of the text around your cursor.")
-            }
-
-            Section {
+        Section {
+            Toggle("Polish text before inserting", isOn: appState.binding(profile: profile.id, \.refinementEnabled))
+            Group {
                 Picker("Provider", selection: providerBinding) {
                     ForEach(RefinementProvider.allCases) { provider in
                         Text(provider.label).tag(provider)
@@ -183,17 +235,20 @@ struct PolishPane: View {
                 }
                 providerDetail
             }
-            .disabled(!appState.config.refinementEnabled)
+            .disabled(!profile.refinementEnabled)
+        } header: {
+            Text("Polish")
+        } footer: {
+            Text("Fixes punctuation, drops filler words and matches the style of the text around your cursor.")
         }
-        .formStyle(.grouped)
     }
 
     @ViewBuilder
     private var providerDetail: some View {
-        let provider = appState.config.refinementProvider
+        let provider = profile.refinementProvider
         if provider.isCloud {
-            TextField("Model", text: appState.binding(\.refinementModel))
-            if provider == .openAI, appState.config.transcriptionBackend == .openAIRealtime {
+            TextField("Model", text: appState.binding(profile: profile.id, \.refinementModel))
+            if provider == .openAI, profile.transcriptionBackend == .openAIRealtime {
                 LabeledContent("API key", value: "Shared with Transcription")
             } else if let account = provider.keychainAccount {
                 APIKeyField(
@@ -212,14 +267,14 @@ struct PolishPane: View {
     /// default, unless the user customized it.
     private var providerBinding: Binding<RefinementProvider> {
         Binding(
-            get: { appState.config.refinementProvider },
+            get: { profile.refinementProvider },
             set: { newProvider in
-                appState.updateConfig { config in
-                    let wasDefaultModel = config.refinementModel == config.refinementProvider.defaultModel
-                        || config.refinementModel.isEmpty
-                    config.refinementProvider = newProvider
+                appState.updateProfile(profile.id) { profile in
+                    let wasDefaultModel = profile.refinementModel == profile.refinementProvider.defaultModel
+                        || profile.refinementModel.isEmpty
+                    profile.refinementProvider = newProvider
                     if wasDefaultModel {
-                        config.refinementModel = newProvider.defaultModel
+                        profile.refinementModel = newProvider.defaultModel
                     }
                 }
             }
@@ -227,40 +282,40 @@ struct PolishPane: View {
     }
 }
 
-struct ContextPane: View {
+private struct ContextSections: View {
     @ObservedObject var appState: AppState
+    let profile: DictationProfile
 
     var body: some View {
-        Form {
-            Section {
-                Toggle("Use the text around your cursor", isOn: appState.binding(\.captureContext))
-            } footer: {
-                Text("Helps Polish match tone, names and formatting. Read through Accessibility at the moment you release the key.")
-            }
-
-            Section {
-                Picker("Read the active window", selection: appState.binding(\.screenContext)) {
-                    ForEach(ScreenContextMode.allCases) { mode in
-                        Text(mode.label).tag(mode)
-                    }
-                }
-                if appState.config.screenContext != .off,
-                   !appState.permissionState.screenRecordingGranted {
-                    PermissionRow(
-                        title: "Screen Recording",
-                        detail: "Needed to read the active window.",
-                        isGranted: false,
-                        actionTitle: "Allow…"
-                    ) {
-                        appState.requestScreenRecordingAccess()
-                        appState.openScreenRecordingSettings()
-                    }
-                }
-            } footer: {
-                Text(appState.config.screenContext.caption)
-            }
+        Section {
+            Toggle("Use the text around your cursor", isOn: appState.binding(profile: profile.id, \.captureContext))
+        } header: {
+            Text("Context")
+        } footer: {
+            Text("Helps Polish match tone, names and formatting. Read through Accessibility at the moment you release the keys.")
         }
-        .formStyle(.grouped)
+
+        Section {
+            Picker("Read the active window", selection: appState.binding(profile: profile.id, \.screenContext)) {
+                ForEach(ScreenContextMode.allCases) { mode in
+                    Text(mode.label).tag(mode)
+                }
+            }
+            if profile.screenContext != .off,
+               !appState.permissionState.screenRecordingGranted {
+                PermissionRow(
+                    title: "Screen Recording",
+                    detail: "Needed to read the active window.",
+                    isGranted: false,
+                    actionTitle: "Allow…"
+                ) {
+                    appState.requestScreenRecordingAccess()
+                    appState.openScreenRecordingSettings()
+                }
+            }
+        } footer: {
+            Text(profile.screenContext.caption)
+        }
     }
 }
 
@@ -272,7 +327,7 @@ struct PermissionsPane: View {
             Section {
                 PermissionRow(
                     title: "Microphone",
-                    detail: "Records only while you hold your push-to-talk key.",
+                    detail: "Records only while you hold a profile's push-to-talk keys.",
                     isGranted: appState.permissionState.microphone == .authorized,
                     actionTitle: appState.permissionState.microphone == .notDetermined ? "Allow" : "Open Settings…"
                 ) {

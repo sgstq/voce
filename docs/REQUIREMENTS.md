@@ -3,7 +3,8 @@
 ## Functional
 
 ### Core dictation loop
-- **Global push-to-talk hotkey** — configurable; hold to record, release to finish.
+- **Global push-to-talk hotkey** — configurable; hold to record, release to finish. A single key or a combination (e.g. Right ⌥ + ⇧); Right ⌥ by default.
+- **Profiles** — any number, all armed at once, each with its own keys, language, engine, Polish and Context, and an on/off switch that keeps the profile and its keys. Insertion, live transcript, appearance and API keys are shared.
 - **Microphone capture** starts on key-down, stops on key-up; the mic is never held while idle.
 - **Transcription backends** (configurable):
   - **OpenAI Realtime** (streaming, default) — live partial transcript while speaking.
