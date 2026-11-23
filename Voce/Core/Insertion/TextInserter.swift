@@ -65,10 +65,14 @@ struct TextInserter {
 
         await waitForQuietKeyboard()
 
-        let chunks = Self.utf16Chunks(of: text, maxUnits: 16)
-        Self.log.notice("keystrokes: typing \(chunks.count) chunks")
-        for chunk in chunks {
-            var units = Array(chunk.utf16)
+        // One character (grapheme cluster) per event. WebKit (Safari and
+        // WKWebView apps such as Amp) delivers multi-character events out of
+        // order — mixed Cyrillic/Latin 16-unit chunks landed scrambled in
+        // every trial — while single-character events at a 2 ms gap stayed
+        // in order. A whole cluster per event keeps emoji intact.
+        Self.log.notice("keystrokes: typing \(text.count) characters")
+        for character in text {
+            var units = Array(String(character).utf16)
             let down = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true)
             let up = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
             down?.keyboardSetUnicodeString(stringLength: units.count, unicodeString: &units)
@@ -79,7 +83,7 @@ struct TextInserter {
             up?.flags = []
             down?.post(tap: .cgSessionEventTap)
             up?.post(tap: .cgSessionEventTap)
-            // A short gap keeps slow event queues (Electron, web views) in order.
+            // The gap is needed too: back-to-back events still reorder in WebKit.
             try? await Task.sleep(for: .milliseconds(2))
         }
     }
@@ -106,31 +110,6 @@ struct TextInserter {
             try? await Task.sleep(for: .milliseconds(25))
         }
         Self.log.warning("keystrokes: modifiers still down after 2s; typing anyway")
-    }
-
-    /// Splits text into chunks of at most `maxUnits` UTF-16 code units without
-    /// splitting grapheme clusters (so surrogate pairs and emoji stay intact).
-    /// Internal for tests.
-    static func utf16Chunks(of text: String, maxUnits: Int) -> [String] {
-        precondition(maxUnits >= 2, "A chunk must fit at least one surrogate pair")
-        var chunks: [String] = []
-        var current = ""
-        var currentUnits = 0
-
-        for character in text {
-            let units = character.utf16.count
-            if currentUnits + units > maxUnits, !current.isEmpty {
-                chunks.append(current)
-                current = ""
-                currentUnits = 0
-            }
-            current.append(character)
-            currentUnits += units
-        }
-        if !current.isEmpty {
-            chunks.append(current)
-        }
-        return chunks
     }
 
     // MARK: Accessibility (kAXSelectedText — explicit opt-in mode)
