@@ -105,6 +105,54 @@ enum ScreenContextMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// How far Polish may move away from the spoken words. Light is the
+/// behavior Polish had before levels existed.
+enum RefinementStrength: String, Codable, CaseIterable, Identifiable {
+    case grammar
+    case light
+    case rewrite
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .grammar: "Grammar only"
+        case .light: "Light polish"
+        case .rewrite: "Rewrite"
+        }
+    }
+
+    var caption: String {
+        switch self {
+        case .grammar:
+            "Keeps your exact words. Fixes grammar, spelling and punctuation, and drops um and uh."
+        case .light:
+            "Keeps your wording. Also drops filler words and false starts, and splits run-on sentences."
+        case .rewrite:
+            "Rephrases what you said into clear text in the tone you pick, keeping every point."
+        }
+    }
+}
+
+/// The voice Polish writes in at the Rewrite level.
+enum RewriteTone: String, Codable, CaseIterable, Identifiable {
+    case natural
+    case casual
+    case professional
+    case concise
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .natural: "Match my tone"
+        case .casual: "Casual"
+        case .professional: "Professional"
+        case .concise: "Concise"
+        }
+    }
+}
+
 enum InsertionMode: String, Codable, CaseIterable, Identifiable {
     case auto
     case accessibility

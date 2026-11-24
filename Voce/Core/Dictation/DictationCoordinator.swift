@@ -334,10 +334,8 @@ final class DictationCoordinator: ObservableObject {
                 finalText = try await refiner.refine(
                     transcript: rawText,
                     context: context,
-                    provider: provider,
-                    model: profile.refinementModel,
-                    apiKey: refinementKey,
-                    language: profile.language
+                    profile: profile,
+                    apiKey: refinementKey
                 )
             } catch {
                 Self.log.error("refinement failed, using raw: \(error.localizedDescription, privacy: .public)")
