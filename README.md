@@ -86,6 +86,7 @@ Voce looks and feels like part of your Mac: a native settings window, light and 
 
 - **Multilingual.** Detects the language you're speaking, even if you switch mid-sentence.
 - **Profiles.** As many as you need, each started by its own key or key combination, with its own language, engine, polish and context. Hold <kbd>Right ⌥</kbd> for English and <kbd>Right ⌥</kbd> + <kbd>⇧</kbd> for Russian. Switch one off without deleting it.
+- **Three polish strengths.** Grammar only keeps your exact words, Light polish drops filler, and Rewrite rephrases in the tone you pick: your own, casual, professional or concise.
 - **Context-aware.** Reads the text around your cursor, and optionally the active window, so names and terms come out right.
 - **Your choice of engine.** On-device, or OpenAI and Deepgram for the fastest streaming. Polish with Apple Intelligence, OpenAI, Groq or Cerebras.
 - **Clipboard-safe.** Text is typed as real keystrokes, so your clipboard is never touched.

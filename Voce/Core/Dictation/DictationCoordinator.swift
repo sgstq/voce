@@ -337,7 +337,9 @@ final class DictationCoordinator: ObservableObject {
                     provider: provider,
                     model: profile.refinementModel,
                     apiKey: refinementKey,
-                    language: profile.language
+                    language: profile.language,
+                    strength: profile.refinementStrength,
+                    tone: profile.rewriteTone
                 )
             } catch {
                 Self.log.error("refinement failed, using raw: \(error.localizedDescription, privacy: .public)")

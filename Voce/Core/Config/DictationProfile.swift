@@ -20,6 +20,9 @@ struct DictationProfile: Codable, Equatable, Identifiable {
     var refinementEnabled: Bool
     var refinementProvider: RefinementProvider
     var refinementModel: String
+    var refinementStrength: RefinementStrength
+    /// Used only when `refinementStrength` is `.rewrite`.
+    var rewriteTone: RewriteTone
     var captureContext: Bool
     var screenContext: ScreenContextMode
 
@@ -41,6 +44,8 @@ struct DictationProfile: Codable, Equatable, Identifiable {
         refinementEnabled: Bool = true,
         refinementProvider: RefinementProvider = .openAI,
         refinementModel: String = "gpt-5-mini",
+        refinementStrength: RefinementStrength = .light,
+        rewriteTone: RewriteTone = .natural,
         captureContext: Bool = true,
         screenContext: ScreenContextMode = .off
     ) {
@@ -57,6 +62,8 @@ struct DictationProfile: Codable, Equatable, Identifiable {
         self.refinementEnabled = refinementEnabled
         self.refinementProvider = refinementProvider
         self.refinementModel = refinementModel
+        self.refinementStrength = refinementStrength
+        self.rewriteTone = rewriteTone
         self.captureContext = captureContext
         self.screenContext = screenContext
     }
@@ -71,6 +78,7 @@ struct DictationProfile: Codable, Equatable, Identifiable {
         case id, name, isEnabled, hotkey, language, transcriptionBackend
         case realtimeModel, realtimeDelay, deepgramModel, openRouterModel
         case refinementEnabled, refinementProvider, refinementModel
+        case refinementStrength, rewriteTone
         case captureContext, screenContext
     }
 
@@ -95,6 +103,8 @@ struct DictationProfile: Codable, Equatable, Identifiable {
         self.refinementProvider = try container.decodeIfPresent(RefinementProvider.self, forKey: .refinementProvider) ?? defaults.refinementProvider
         let refinementModel = try container.decodeIfPresent(String.self, forKey: .refinementModel) ?? defaults.refinementModel
         self.refinementModel = refinementProvider.replacement(forRetiredModel: refinementModel) ?? refinementModel
+        self.refinementStrength = try container.decodeIfPresent(RefinementStrength.self, forKey: .refinementStrength) ?? defaults.refinementStrength
+        self.rewriteTone = try container.decodeIfPresent(RewriteTone.self, forKey: .rewriteTone) ?? defaults.rewriteTone
         self.captureContext = try container.decodeIfPresent(Bool.self, forKey: .captureContext) ?? defaults.captureContext
         self.screenContext = try container.decodeIfPresent(ScreenContextMode.self, forKey: .screenContext) ?? defaults.screenContext
     }

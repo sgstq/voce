@@ -33,6 +33,8 @@ final class AppConfigTests: XCTestCase {
         config.primaryProfile.hotkey = HotkeySpec(capturedKeyCode: 96) // F5
         config.primaryProfile.realtimeDelay = .medium
         config.primaryProfile.screenContext = .termsOnly
+        config.primaryProfile.refinementStrength = .rewrite
+        config.primaryProfile.rewriteTone = .concise
         config.profiles.append(DictationProfile(
             name: "Russian",
             hotkey: HotkeySpec(capturedKeyCodes: [56, 61]), // Right ⌥ + ⇧
@@ -127,6 +129,9 @@ final class AppConfigTests: XCTestCase {
         XCTAssertEqual(config.primaryProfile.language, "fi")
         XCTAssertEqual(config.primaryProfile.hotkey, .defaultPushToTalk)
         XCTAssertTrue(config.primaryProfile.refinementEnabled)
+        // Configs from before strength levels keep today's polish.
+        XCTAssertEqual(config.primaryProfile.refinementStrength, .light)
+        XCTAssertEqual(config.primaryProfile.rewriteTone, .natural)
 
         // A profile entry with only an id and a name gets defaults and no keys.
         let sparse = #"{"profiles": [{"id": "6F1C2A70-6B7E-4E0B-9C55-1E4B5C2E9D11", "name": "Notes"}]}"#

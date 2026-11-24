@@ -234,12 +234,24 @@ private struct PolishSection: View {
                     }
                 }
                 providerDetail
+                Picker("Strength", selection: appState.binding(profile: profile.id, \.refinementStrength)) {
+                    ForEach(RefinementStrength.allCases) { strength in
+                        Text(strength.label).tag(strength)
+                    }
+                }
+                if profile.refinementStrength == .rewrite {
+                    Picker("Tone", selection: appState.binding(profile: profile.id, \.rewriteTone)) {
+                        ForEach(RewriteTone.allCases) { tone in
+                            Text(tone.label).tag(tone)
+                        }
+                    }
+                }
             }
             .disabled(!profile.refinementEnabled)
         } header: {
             Text("Polish")
         } footer: {
-            Text("Fixes punctuation, drops filler words and matches the style of the text around your cursor.")
+            Text(profile.refinementStrength.caption)
         }
     }
 
