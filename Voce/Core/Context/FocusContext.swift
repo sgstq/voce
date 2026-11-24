@@ -57,6 +57,36 @@ enum FocusContextCapture {
     static let beforeWindow = 600
     static let afterWindow = 300
 
+    /// Electron and other Chromium apps (Slack, VS Code, bb) build their
+    /// accessibility tree only after a client sets AXManualAccessibility,
+    /// and then take about 2 s (measured in bb), so this runs when an app
+    /// comes to the front rather than at key press. Without it they report no
+    /// focused element and Voce sees no text around the cursor. Native apps
+    /// reject the attribute, which is harmless; it reads nothing.
+    nonisolated static func enableAccessibility(ofProcess pid: pid_t) {
+        AXUIElementSetAttributeValue(
+            AXUIElementCreateApplication(pid), "AXManualAccessibility" as CFString, kCFBooleanTrue
+        )
+    }
+
+    /// Enables accessibility in the front app now and in each app that comes
+    /// forward later, while `isNeeded` (some profile captures context) holds.
+    /// Keep the returned observer alive for as long as it should run.
+    static func enableAccessibilityOfFrontApps(while isNeeded: @escaping @MainActor () -> Bool) -> NSObjectProtocol {
+        if isNeeded(), let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier {
+            enableAccessibility(ofProcess: pid)
+        }
+        return NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { notification in
+            guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
+            let pid = app.processIdentifier
+            MainActor.assumeIsolated {
+                if isNeeded() { enableAccessibility(ofProcess: pid) }
+            }
+        }
+    }
+
     /// `includeText: false` captures only the app/window identity (used for
     /// the target-changed guard when the user disabled context capture).
     static func capture(includeText: Bool) -> FocusContext {
@@ -67,14 +97,16 @@ enum FocusContextCapture {
             context.bundleIdentifier = app.bundleIdentifier ?? ""
         }
 
-        let systemWide = AXUIElementCreateSystemWide()
+        // Ask the front app first: for Electron apps the system-wide query
+        // fails (kAXErrorCannotComplete) even once their tree exists.
+        let owners = [
+            NSWorkspace.shared.frontmostApplication.map { AXUIElementCreateApplication($0.processIdentifier) },
+            AXUIElementCreateSystemWide(),
+        ].compactMap { $0 }
         var focusedRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(
-            systemWide,
-            kAXFocusedUIElementAttribute as CFString,
-            &focusedRef
-        ) == .success, let focusedRef,
-            CFGetTypeID(focusedRef) == AXUIElementGetTypeID() else {
+        guard owners.contains(where: {
+            AXUIElementCopyAttributeValue($0, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success
+        }), let focusedRef, CFGetTypeID(focusedRef) == AXUIElementGetTypeID() else {
             log.info("capture: no focused element (app=\(context.appName, privacy: .public))")
             return context
         }

@@ -60,6 +60,7 @@ final class DictationCoordinator: ObservableObject {
     private var heardLiveText = false
     private var releaseContext: FocusContext?
     private var screenContextTask: Task<String?, Never>?
+    private var activationObserver: NSObjectProtocol?
 
     init(
         configProvider: @escaping @MainActor () -> AppConfig,
@@ -69,6 +70,9 @@ final class DictationCoordinator: ObservableObject {
         self.configProvider = configProvider
         self.apiKeyProvider = apiKeyProvider
         self.refinementKeyProvider = refinementKeyProvider
+        activationObserver = FocusContextCapture.enableAccessibilityOfFrontApps {
+            configProvider().profiles.contains(where: \.captureContext)
+        }
     }
 
     var isHotkeyRunning: Bool { hotkey?.isRunning ?? false }
