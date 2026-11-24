@@ -17,6 +17,11 @@ final class FocusContextWindowTests: XCTestCase {
         XCTAssertEqual(typed("aside", after: "an ("), "aside")
         XCTAssertEqual(typed("quoted", after: "say \""), "quoted")
         XCTAssertEqual(typed(", then more", after: "first"), ", then more")
+        // Never two spaces in a row: inside the dictation or at the seam.
+        XCTAssertEqual(typed("Can  we   import", after: ""), "Can we import")
+        XCTAssertEqual(typed("Can  we", after: "Hi."), " Can we")
+        XCTAssertEqual(typed(" we import", after: "Can "), "we import")
+        XCTAssertEqual(typed("line one\n\nline two", after: ""), "line one\n\nline two")
     }
 
     func testWindowsAroundCursor() {

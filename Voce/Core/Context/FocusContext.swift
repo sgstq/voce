@@ -27,7 +27,14 @@ struct FocusContext: Equatable, Sendable {
     /// one typed right after a word or a sentence's end needs a space first.
     /// None after whitespace, quotes, or opening brackets, whose side is
     /// ambiguous, and none before text that starts with punctuation.
+    /// Two spaces in a row are never meant in a dictation, inside it or at
+    /// the seam with the text before, and macOS's "Add period with
+    /// double-space" turns them into ". ", so runs collapse to one.
     func spacedForInsertion(_ text: String) -> String {
+        var text = text.replacingOccurrences(of: " {2,}", with: " ", options: .regularExpression)
+        if textBeforeCursor.last == " " {
+            text = String(text.drop { $0 == " " })
+        }
         guard let last = textBeforeCursor.last, let first = text.first else { return text }
         let joinsAfter = last.isLetter || last.isNumber || ".,;:!?)]}%…".contains(last)
         let startsWord = !first.isWhitespace && !".,;:!?)]}%…'\"".contains(first)
