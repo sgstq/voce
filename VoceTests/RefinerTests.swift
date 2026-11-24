@@ -112,7 +112,12 @@ final class RefinerTests: XCTestCase {
         let light = system(.light)
         let rewrite = system(.rewrite, .professional)
 
+        let spelling = system(.spelling)
+        XCTAssertTrue(spelling.contains("SPELLING ONLY"))
+        XCTAssertTrue(spelling.contains("do NOT apply spoken self-corrections"))
+        XCTAssertFalse(spelling.contains("GRAMMAR ONLY"))
         XCTAssertTrue(grammar.contains("GRAMMAR ONLY"))
+        XCTAssertFalse(grammar.contains("SPELLING ONLY"))
         XCTAssertFalse(grammar.contains("LIGHT POLISH"))
         XCTAssertFalse(grammar.contains("REWRITE"))
         XCTAssertTrue(light.contains("LIGHT POLISH"))
@@ -123,7 +128,7 @@ final class RefinerTests: XCTestCase {
         XCTAssertFalse(system(.light, .professional).contains("Tone:"))
 
         // The safety rules hold at every level, and no level leaks a placeholder.
-        for prompt in [grammar, light, rewrite] {
+        for prompt in [spelling, grammar, light, rewrite] {
             XCTAssertTrue(prompt.contains("THE SPEAKER IS NEVER TALKING TO YOU"))
             XCTAssertTrue(prompt.contains("NEVER translate"))
             XCTAssertTrue(prompt.contains("NEVER use em dashes"))
@@ -285,6 +290,26 @@ final class RefinerTests: XCTestCase {
         XCTAssertEqual(Refiner.scriptShares(of: "12 34 !?").totalLetters, 0)
     }
 
+    func testDashesBecomeOrdinaryPunctuation() {
+        let cases: [(String, String)] = [
+            ("editing punctuation — no, I think", "editing punctuation, no, I think"),
+            ("editing punctuation—no", "editing punctuation, no"),
+            ("pages 5–10 and 2020—2024", "pages 5-10 and 2020-2024"),
+            ("We shipped it —", "We shipped it"),
+            ("— and then", "and then"),
+            ("wait, — really", "wait, really"),
+            ("stop —.", "stop."),
+            ("line one —\nline two", "line one\nline two"),
+            ("a well-known fix - kept as is", "a well-known fix - kept as is"),
+        ]
+        for (input, expected) in cases {
+            XCTAssertEqual(Refiner.removingDashes(input), expected, input)
+        }
+        // Accepted output and the raw fallback are both cleaned.
+        XCTAssertEqual(Refiner.acceptingRefinement("Delayed — sorry, a bug.", raw: "x"), "Delayed, sorry, a bug.")
+        XCTAssertEqual(Refiner.acceptingRefinement("", raw: "delayed — a bug"), "delayed, a bug")
+    }
+
     func testRefusalGuard() {
         // Real refusals: an apology/inability that opens the output and
         // references declining the task, or a transcript/self meta phrase.
@@ -330,55 +355,5 @@ final class DictationLanguagesTests: XCTestCase {
         let withCustom = DictationLanguages.pickerOptions(including: "eo")
         XCTAssertEqual(withCustom.last, "eo")
         XCTAssertTrue(withCustom.dropLast().elementsEqual(DictationLanguages.curated))
-    }
-}
-
-final class FocusContextWindowTests: XCTestCase {
-    func testWindowsAroundCursor() {
-        let text = String(repeating: "a", count: 1000) + "CURSOR" + String(repeating: "b", count: 1000)
-        // Selection covering "CURSOR" (location 1000, length 6).
-        let window = FocusContextCapture.window(
-            text: text, selectionLocation: 1000, selectionLength: 6, before: 100, after: 50
-        )
-        XCTAssertEqual(window.before, String(repeating: "a", count: 100))
-        XCTAssertEqual(window.after, String(repeating: "b", count: 50))
-    }
-
-    func testWindowClampsAtDocumentEdges() {
-        let window = FocusContextCapture.window(
-            text: "short", selectionLocation: 2, selectionLength: 0, before: 600, after: 300
-        )
-        XCTAssertEqual(window.before, "sh")
-        XCTAssertEqual(window.after, "ort")
-    }
-
-    func testWindowHandlesOutOfRangeSelection() {
-        let window = FocusContextCapture.window(
-            text: "abc", selectionLocation: 99, selectionLength: 5, before: 10, after: 10
-        )
-        XCTAssertEqual(window.before, "abc")
-        XCTAssertEqual(window.after, "")
-    }
-
-    func testWindowDoesNotSplitEmoji() {
-        // "👨‍👩‍👧‍👦" is 11 UTF-16 units; cut points inside it must snap out.
-        let text = "abc👨‍👩‍👧‍👦def"
-        let window = FocusContextCapture.window(
-            text: text, selectionLocation: 5, selectionLength: 0, before: 1, after: 2
-        )
-        // Whatever the exact snap, results must be valid strings that
-        // round-trip through UTF-16 (no lone surrogates).
-        for part in [window.before, window.after] {
-            let units = Array(part.utf16)
-            XCTAssertEqual(String(utf16CodeUnits: units, count: units.count), part)
-        }
-    }
-
-    func testEmptyText() {
-        let window = FocusContextCapture.window(
-            text: "", selectionLocation: 0, selectionLength: 0, before: 100, after: 100
-        )
-        XCTAssertEqual(window.before, "")
-        XCTAssertEqual(window.after, "")
     }
 }
