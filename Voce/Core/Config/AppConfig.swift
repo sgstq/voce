@@ -108,6 +108,7 @@ enum ScreenContextMode: String, Codable, CaseIterable, Identifiable {
 /// How far Polish may move away from the spoken words. Light is the
 /// behavior Polish had before levels existed.
 enum RefinementStrength: String, Codable, CaseIterable, Identifiable {
+    case spelling
     case grammar
     case light
     case rewrite
@@ -116,6 +117,7 @@ enum RefinementStrength: String, Codable, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
+        case .spelling: "Spelling only"
         case .grammar: "Grammar only"
         case .light: "Light polish"
         case .rewrite: "Rewrite"
@@ -124,6 +126,8 @@ enum RefinementStrength: String, Codable, CaseIterable, Identifiable {
 
     var caption: String {
         switch self {
+        case .spelling:
+            "Fixes only misheard and misspelled words; everything else stays as transcribed. Reading the active window as Terms only gives it more names to match."
         case .grammar:
             "Keeps your exact words. Fixes grammar, spelling and punctuation, and drops um and uh."
         case .light:

@@ -361,6 +361,7 @@ final class DictationCoordinator: ObservableObject {
         }
 
         let inserter = self.inserter
+        let text = context.spacedForInsertion(text)
         Task { [weak self] in
             do {
                 try await inserter.insert(text, mode: mode)

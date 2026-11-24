@@ -139,7 +139,13 @@ struct Refiner {
     /// result. A long dictation must never come back as just its last
     /// phrase, and a mixed-language dictation must never come back unified
     /// into one language.
+    /// Whichever text wins also loses its dashes: the speech engine writes
+    /// them as well as the model.
     static func acceptingRefinement(_ refined: String, raw: String, strength: RefinementStrength = .light) -> String {
+        removingDashes(chosenText(refined, raw: raw, strength: strength))
+    }
+
+    private static func chosenText(_ refined: String, raw: String, strength: RefinementStrength) -> String {
         if refined.isEmpty || isRefusal(refined) {
             log.warning("refine returned refusal/empty; using raw transcript")
             return raw
@@ -154,6 +160,22 @@ struct Refiner {
         }
         log.notice("refined chars=\(refined.count)")
         return refined
+    }
+
+    /// Em and en dashes used as punctuation read as AI-written, and models
+    /// keep them on long dictations whatever the prompt says (measured: an
+    /// em dash from the speech engine survived 4 of 4 gpt-5-mini runs). A
+    /// dash between two digits is a range and becomes a hyphen; every other
+    /// one becomes a comma, or disappears next to other punctuation or at a
+    /// line's edge. Internal for tests.
+    static func removingDashes(_ text: String) -> String {
+        guard text.contains(where: { $0 == "\u{2014}" || $0 == "\u{2013}" }) else { return text }
+        var result = text.replacingOccurrences(of: #"(?<=\d)[–—](?=\d)"#, with: "-", options: .regularExpression)
+        result = result.replacingOccurrences(of: #"[ \t]*[–—]+[ \t]*"#, with: ", ", options: .regularExpression)
+        result = result.replacingOccurrences(of: #"(?m)^, |, $"#, with: "", options: .regularExpression)
+        result = result.replacingOccurrences(of: #"([.,;:!?…]), "#, with: "$1 ", options: .regularExpression)
+        result = result.replacingOccurrences(of: #", (?=[.,;:!?…])"#, with: "", options: .regularExpression)
+        return result
     }
 
     /// Deterministic translation detector: prompt rules ask models to

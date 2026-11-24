@@ -5,10 +5,15 @@ import Foundation
 extension Refiner {
     // swiftlint:disable line_length
     /// The part of the cleanup rules that changes with the level. Everything
-    /// else (never answering, languages, identifiers, self-corrections) holds
-    /// at every level.
+    /// else (never answering, languages, identifiers) holds at every level;
+    /// Spelling only also turns off self-corrections and number conversion.
     static func strengthRule(_ strength: RefinementStrength, tone: RewriteTone) -> String {
         switch strength {
+        case .spelling:
+            return """
+            - Level: SPELLING ONLY, the lightest level. Change ONLY words that are wrong: words the speech recognizer misheard (a similar-sounding word that makes no sense here) and misspelled words. Use the surrounding text and the on-screen terms as the reference for the correct spelling of names and technical terms. Keep everything else exactly as transcribed: grammar, word order, punctuation, capitalization, filler words (um, uh), and repetitions. Convert only explicitly spoken punctuation and layout commands ("period", "new line").
+            - This level overrides the general rules below: do NOT apply spoken self-corrections (keep "scratch that", "no wait" and the words around them), do NOT convert numbers, and do NOT restyle the text to match the surrounding text.
+            """
         case .grammar:
             return """
             - Level: GRAMMAR ONLY. Keep the speaker's exact words and word order. Change only what is wrong: grammar, spelling, punctuation, capitalization, spacing, and obvious speech-recognition errors. Remove only non-word sounds (um, uh, er, hmm), stutters, and accidentally repeated words. Keep every other word, including "like", "you know", "so", "basically", and "actually". Do NOT rephrase, reorder, shorten, formalize, or pick better words.

@@ -23,6 +23,17 @@ struct FocusContext: Equatable, Sendable {
         !textBeforeCursor.isEmpty || !textAfterCursor.isEmpty || !selectedText.isEmpty
     }
 
+    /// The dictation as it should be typed: a dictation arrives trimmed, so
+    /// one typed right after a word or a sentence's end needs a space first.
+    /// None after whitespace, quotes, or opening brackets, whose side is
+    /// ambiguous, and none before text that starts with punctuation.
+    func spacedForInsertion(_ text: String) -> String {
+        guard let last = textBeforeCursor.last, let first = text.first else { return text }
+        let joinsAfter = last.isLetter || last.isNumber || ".,;:!?)]}%…".contains(last)
+        let startsWord = !first.isWhitespace && !".,;:!?)]}%…'\"".contains(first)
+        return joinsAfter && startsWord ? " " + text : text
+    }
+
     /// Folds the active window's recognized text in as the screen-context
     /// mode allows: distilled terms only, or the full text with secrets
     /// redacted.
