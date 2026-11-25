@@ -37,6 +37,7 @@ actor AppleTranscriptionSession: TranscriptionSession {
 
     private let continuation: AsyncStream<TranscriptionEvent>.Continuation
     private let language: String
+    private let contextualStrings: [String]
 
     /// Raw PCM16 chunks bridged from `sendAudio` into the analysis task.
     private let audioChunks: AsyncStream<Data>
@@ -48,8 +49,9 @@ actor AppleTranscriptionSession: TranscriptionSession {
     /// Concatenation of every final result — becomes the transcript.
     private var finalizedTranscript = ""
 
-    init(language: String) {
+    init(language: String, contextualStrings: [String] = []) {
         self.language = language
+        self.contextualStrings = contextualStrings
         (self.events, self.continuation) = AsyncStream.makeStream(
             of: TranscriptionEvent.self,
             bufferingPolicy: .unbounded
@@ -104,6 +106,17 @@ actor AppleTranscriptionSession: TranscriptionSession {
             options: .init(priority: .userInitiated, modelRetention: .processLifetime)
         )
         self.analyzer = analyzer
+
+        if !contextualStrings.isEmpty {
+            let context = AnalysisContext()
+            context.contextualStrings[.general] = contextualStrings
+            do {
+                try await analyzer.setContext(context)
+            } catch {
+                // Hints only steer spelling; dictate without them.
+                Self.log.error("contextual strings rejected: \(error.localizedDescription, privacy: .public)")
+            }
+        }
 
         let (inputs, inputContinuation) = AsyncStream.makeStream(
             of: AnalyzerInput.self,

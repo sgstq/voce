@@ -14,6 +14,7 @@ actor RealtimeTranscriptionSession: TranscriptionSession {
     private let model: String
     private let language: String
     private let delay: RealtimeDelay
+    private let keywords: [String]
     private var receiveTask: Task<Void, Never>?
     private var finished = false
 
@@ -22,6 +23,7 @@ actor RealtimeTranscriptionSession: TranscriptionSession {
         model: String,
         language: String,
         delay: RealtimeDelay,
+        keywords: [String] = [],
         endpoint: URL = RealtimeProtocol.defaultEndpoint
     ) {
         var request = URLRequest(url: endpoint)
@@ -30,6 +32,7 @@ actor RealtimeTranscriptionSession: TranscriptionSession {
         self.model = model
         self.language = language
         self.delay = delay
+        self.keywords = keywords
         (self.events, self.continuation) = AsyncStream.makeStream(
             of: TranscriptionEvent.self,
             bufferingPolicy: .unbounded
@@ -44,7 +47,7 @@ actor RealtimeTranscriptionSession: TranscriptionSession {
         // handshake completes, so configuring first guarantees the session is
         // a transcription session before any audio arrives.
         do {
-            try send(RealtimeProtocol.sessionUpdateJSON(model: model, language: language, delay: delay))
+            try send(RealtimeProtocol.sessionUpdateJSON(model: model, language: language, delay: delay, keywords: keywords))
         } catch {
             fail("Failed to configure the transcription session: \(error.localizedDescription)")
             return

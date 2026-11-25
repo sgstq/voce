@@ -175,12 +175,16 @@ private struct TranscriptionSections: View {
                 }
             case .deepgram:
                 TextField("Model", text: appState.binding(profile: profile.id, \.deepgramModel))
+            case .elevenLabs:
+                TextField("Model", text: appState.binding(profile: profile.id, \.elevenLabsModel))
             case .openRouter:
                 TextField("Model", text: appState.binding(profile: profile.id, \.openRouterModel))
             case .appleOnDevice:
                 LabeledContent("Model", value: "Apple SpeechAnalyzer")
             }
         }
+
+        TranscriptionOptionsSection(appState: appState, profile: profile)
     }
 
     @ViewBuilder

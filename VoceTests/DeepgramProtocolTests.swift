@@ -22,6 +22,12 @@ final class DeepgramProtocolTests: XCTestCase {
         XCTAssertEqual(query["language"], "en")
     }
 
+    func testKeytermsAreRepeatedParameters() throws {
+        let url = DeepgramProtocol.endpoint(model: "nova-3", language: "en", keyterms: ["Voce", "customer service"])
+        let items = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+        XCTAssertEqual(items.filter { $0.name == "keyterm" }.map(\.value), ["Voce", "customer service"])
+    }
+
     func testLanguageMapping() {
         // "Auto" rides nova-3's multilingual code-switching.
         XCTAssertEqual(DeepgramProtocol.mappedLanguage("auto"), "multi")

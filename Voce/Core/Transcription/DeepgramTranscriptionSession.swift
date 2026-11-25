@@ -21,10 +21,11 @@ actor DeepgramTranscriptionSession: TranscriptionSession {
         apiKey: String,
         model: String,
         language: String,
+        keyterms: [String] = [],
         endpoint: URL = DeepgramProtocol.defaultEndpoint
     ) {
         var request = URLRequest(
-            url: DeepgramProtocol.endpoint(model: model, language: language, base: endpoint)
+            url: DeepgramProtocol.endpoint(model: model, language: language, keyterms: keyterms, base: endpoint)
         )
         request.setValue("Token \(apiKey)", forHTTPHeaderField: "Authorization")
         self.webSocket = URLSession.shared.webSocketTask(with: request)

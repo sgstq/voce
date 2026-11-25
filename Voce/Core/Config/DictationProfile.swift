@@ -17,6 +17,18 @@ struct DictationProfile: Codable, Equatable, Identifiable {
     var realtimeDelay: RealtimeDelay
     var deepgramModel: String
     var openRouterModel: String
+    var elevenLabsModel: String
+    /// Terms that steer transcription spelling, as typed: one per line or
+    /// comma separated. Kept as text so the field edits naturally.
+    var vocabulary: String
+    var vocabularyHintsEnabled: Bool
+    /// Adds identifier-shaped terms read from the active window after the
+    /// typed ones.
+    var screenVocabularyHints: Bool
+    var removeFillerWords: Bool
+    /// Transcribes each language in its own script when the speaker switches
+    /// mid-sentence.
+    var multilingualMode: Bool
     var refinementEnabled: Bool
     var refinementProvider: RefinementProvider
     var refinementModel: String
@@ -41,6 +53,12 @@ struct DictationProfile: Codable, Equatable, Identifiable {
         realtimeDelay: RealtimeDelay = .low,
         deepgramModel: String = "nova-3",
         openRouterModel: String = "microsoft/mai-transcribe-2",
+        elevenLabsModel: String = "scribe_v3_live",
+        vocabulary: String = "",
+        vocabularyHintsEnabled: Bool = false,
+        screenVocabularyHints: Bool = false,
+        removeFillerWords: Bool = false,
+        multilingualMode: Bool = false,
         refinementEnabled: Bool = true,
         refinementProvider: RefinementProvider = .openAI,
         refinementModel: String = "gpt-5-mini",
@@ -59,6 +77,12 @@ struct DictationProfile: Codable, Equatable, Identifiable {
         self.realtimeDelay = realtimeDelay
         self.deepgramModel = deepgramModel
         self.openRouterModel = openRouterModel
+        self.elevenLabsModel = elevenLabsModel
+        self.vocabulary = vocabulary
+        self.vocabularyHintsEnabled = vocabularyHintsEnabled
+        self.screenVocabularyHints = screenVocabularyHints
+        self.removeFillerWords = removeFillerWords
+        self.multilingualMode = multilingualMode
         self.refinementEnabled = refinementEnabled
         self.refinementProvider = refinementProvider
         self.refinementModel = refinementModel
@@ -76,7 +100,8 @@ struct DictationProfile: Codable, Equatable, Identifiable {
 
     private enum CodingKeys: String, CodingKey {
         case id, name, isEnabled, hotkey, language, transcriptionBackend
-        case realtimeModel, realtimeDelay, deepgramModel, openRouterModel
+        case realtimeModel, realtimeDelay, deepgramModel, openRouterModel, elevenLabsModel
+        case vocabulary, vocabularyHintsEnabled, screenVocabularyHints, removeFillerWords, multilingualMode
         case refinementEnabled, refinementProvider, refinementModel
         case refinementStrength, rewriteTone
         case captureContext, screenContext
@@ -99,6 +124,12 @@ struct DictationProfile: Codable, Equatable, Identifiable {
         self.realtimeDelay = try container.decodeIfPresent(RealtimeDelay.self, forKey: .realtimeDelay) ?? defaults.realtimeDelay
         self.deepgramModel = try container.decodeIfPresent(String.self, forKey: .deepgramModel) ?? defaults.deepgramModel
         self.openRouterModel = try container.decodeIfPresent(String.self, forKey: .openRouterModel) ?? defaults.openRouterModel
+        self.elevenLabsModel = try container.decodeIfPresent(String.self, forKey: .elevenLabsModel) ?? defaults.elevenLabsModel
+        self.vocabulary = try container.decodeIfPresent(String.self, forKey: .vocabulary) ?? defaults.vocabulary
+        self.vocabularyHintsEnabled = try container.decodeIfPresent(Bool.self, forKey: .vocabularyHintsEnabled) ?? defaults.vocabularyHintsEnabled
+        self.screenVocabularyHints = try container.decodeIfPresent(Bool.self, forKey: .screenVocabularyHints) ?? defaults.screenVocabularyHints
+        self.removeFillerWords = try container.decodeIfPresent(Bool.self, forKey: .removeFillerWords) ?? defaults.removeFillerWords
+        self.multilingualMode = try container.decodeIfPresent(Bool.self, forKey: .multilingualMode) ?? defaults.multilingualMode
         self.refinementEnabled = try container.decodeIfPresent(Bool.self, forKey: .refinementEnabled) ?? defaults.refinementEnabled
         self.refinementProvider = try container.decodeIfPresent(RefinementProvider.self, forKey: .refinementProvider) ?? defaults.refinementProvider
         let refinementModel = try container.decodeIfPresent(String.self, forKey: .refinementModel) ?? defaults.refinementModel
