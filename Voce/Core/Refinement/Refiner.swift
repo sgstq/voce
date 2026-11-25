@@ -104,7 +104,12 @@ struct Refiner {
         request.httpMethod = "POST"
         request.timeoutInterval = Self.timeout
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        if provider == .anthropic {
+            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+            request.setValue(Self.anthropicVersion, forHTTPHeaderField: "anthropic-version")
+        } else {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
         request.httpBody = try Self.requestBody(
             provider: provider, model: model, system: prompt.system, user: prompt.user
         )
@@ -121,12 +126,7 @@ struct Refiner {
             throw RefinerError.badResponse(status, body)
         }
 
-        guard
-            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let choices = object["choices"] as? [[String: Any]],
-            let message = choices.first?["message"] as? [String: Any],
-            let content = message["content"] as? String
-        else {
+        guard let content = Self.responseText(data, provider: provider) else {
             throw RefinerError.emptyResponse
         }
 
@@ -323,6 +323,9 @@ struct Refiner {
     }
 
     static func requestBody(provider: RefinementProvider, model: String, system: String, user: String) throws -> Data {
+        if provider == .anthropic {
+            return try anthropicRequestBody(model: model, system: system, user: user)
+        }
         var payload: [String: Any] = [
             "model": model,
             "messages": [
@@ -347,7 +350,7 @@ struct Refiner {
             if model.contains("gpt-oss") {
                 payload["reasoning_effort"] = "low"
             }
-        case .appleOnDevice:
+        case .anthropic, .appleOnDevice:
             break
         }
 

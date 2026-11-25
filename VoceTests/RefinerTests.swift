@@ -211,6 +211,40 @@ final class RefinerTests: XCTestCase {
         }
     }
 
+    func testAnthropicRequestUsesMessagesAPIWithLittleThinking() throws {
+        let data = try Refiner.requestBody(provider: .anthropic, model: "claude-haiku-5-5", system: "SYS", user: "USR")
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(object["model"] as? String, "claude-haiku-5-5")
+        // The Messages API takes the rules as a top-level system field, not a message.
+        XCTAssertEqual(object["system"] as? String, "SYS")
+        let messages = try XCTUnwrap(object["messages"] as? [[String: Any]])
+        XCTAssertEqual(messages.count, 1)
+        XCTAssertEqual(messages[0]["role"] as? String, "user")
+        XCTAssertEqual(messages[0]["content"] as? String, "USR")
+        XCTAssertEqual((object["output_config"] as? [String: Any])?["effort"] as? String, "low")
+        XCTAssertEqual((object["thinking"] as? [String: Any])?["type"] as? String, "disabled")
+        XCTAssertNotNil(object["max_tokens"])
+        XCTAssertNil(object["temperature"], "current Claude models reject sampling params")
+
+        // Sonnet 5.5 rejects disabled thinking; Opus always thinks.
+        let sonnet = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: Refiner.requestBody(provider: .anthropic, model: "claude-sonnet-5-5", system: "S", user: "U")
+        ) as? [String: Any])
+        XCTAssertEqual((sonnet["thinking"] as? [String: Any])?["type"] as? String, "between_tools")
+        let opus = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: Refiner.requestBody(provider: .anthropic, model: "claude-opus-5-5", system: "S", user: "U")
+        ) as? [String: Any])
+        XCTAssertNil(opus["thinking"])
+    }
+
+    func testResponseTextReadsOnlyAnthropicTextBlocks() {
+        let anthropic = #"{"content":[{"type":"thinking","thinking":"hmm"},{"type":"text","text":"Clean text."}]}"#
+        XCTAssertEqual(Refiner.responseText(Data(anthropic.utf8), provider: .anthropic), "Clean text.")
+        XCTAssertNil(Refiner.responseText(Data(#"{"content":[]}"#.utf8), provider: .anthropic))
+        let openAI = #"{"choices":[{"message":{"content":"Clean text."}}]}"#
+        XCTAssertEqual(Refiner.responseText(Data(openAI.utf8), provider: .openAI), "Clean text.")
+    }
+
     func testFailureNoticeOnlyForErrorsThatRepeat() {
         func notice(_ error: Error) -> String? {
             Refiner.failureNotice(for: error, provider: .groq)
@@ -233,6 +267,9 @@ final class RefinerTests: XCTestCase {
         XCTAssertEqual(RefinementProvider.openAI.endpoint?.host, "api.openai.com")
         XCTAssertEqual(RefinementProvider.groq.endpoint?.host, "api.groq.com")
         XCTAssertEqual(RefinementProvider.cerebras.endpoint?.host, "api.cerebras.ai")
+        XCTAssertEqual(RefinementProvider.anthropic.endpoint?.path, "/v1/messages")
+        XCTAssertEqual(RefinementProvider.anthropic.defaultModel, "claude-haiku-5-5")
+        XCTAssertEqual(RefinementProvider.anthropic.keychainAccount, "anthropic-api-key")
         XCTAssertNil(RefinementProvider.appleOnDevice.endpoint)
 
         XCTAssertEqual(RefinementProvider.openAI.keychainAccount, "openai-api-key")
