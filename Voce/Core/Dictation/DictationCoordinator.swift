@@ -293,8 +293,8 @@ final class DictationCoordinator: ObservableObject {
         phase = .refining
         audio.stop()
 
-        let rawText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let profile = snapshot.profile
+        let rawText = CutOffWords.removed(from: text.trimmingCharacters(in: .whitespacesAndNewlines), language: profile.language)
         let insertionMode = snapshot.config.insertionMode
         let context = releaseContext ?? FocusContext()
 
