@@ -104,7 +104,16 @@ final class DictationCoordinator: ObservableObject {
         errorDismissTask?.cancel()
         snapshot = Snapshot(config: config, profile: profile)
 
-        let session = backend.makeSession(profile: profile, apiKey: apiKey)
+        // Screen context rides the same trick as prewarming: capture + OCR
+        // run while the user speaks, so the text is ready by refinement time
+        // (the service caps itself and returns nil when late or unavailable).
+        // On-screen vocabulary hints need it sooner, at connect time.
+        let wantsScreenForPolish = profile.refinementEnabled && profile.screenContext != .off
+        if wantsScreenForPolish || profile.wantsScreenTerms {
+            screenContextTask = Task { await ScreenContextService.captureWindowText() }
+        }
+
+        let session = profile.makeTranscriptionSession(apiKey: apiKey, screenText: screenContextTask)
         self.session = session
 
         let chunks: AsyncStream<Data>
@@ -116,6 +125,8 @@ final class DictationCoordinator: ObservableObject {
                 chunks = try audio.start()
             } catch {
                 self.session = nil
+                screenContextTask?.cancel()
+                screenContextTask = nil
                 Self.log.error("begin: audio start failed: \(error.localizedDescription, privacy: .public)")
                 showTransientError("Microphone failed: \(error.localizedDescription)")
                 return
@@ -135,13 +146,6 @@ final class DictationCoordinator: ObservableObject {
         // handshakes / model loading never sit inside the "Polishing…" wait.
         if profile.refinementEnabled {
             refiner.prewarm(provider: profile.refinementProvider)
-        }
-
-        // Screen context rides the same trick: capture + OCR run while the
-        // user speaks, so the text is ready by refinement time (the service
-        // caps itself and returns nil when late or unavailable).
-        if profile.refinementEnabled, profile.screenContext != .off {
-            screenContextTask = Task { await ScreenContextService.captureWindowText() }
         }
 
         stream(chunks, to: session)
@@ -289,8 +293,8 @@ final class DictationCoordinator: ObservableObject {
         phase = .refining
         audio.stop()
 
-        let rawText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let profile = snapshot.profile
+        let rawText = CutOffWords.removed(from: text.trimmingCharacters(in: .whitespacesAndNewlines), language: profile.language)
         let insertionMode = snapshot.config.insertionMode
         let context = releaseContext ?? FocusContext()
 

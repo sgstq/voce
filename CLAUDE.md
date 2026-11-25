@@ -9,6 +9,7 @@ These instructions describe how AI coding agents should work in this repository.
 
 ## Planning First
 - Do not implement code changes until the user explicitly asks with words like "implement", "build it", "go ahead", or similar.
+- When the user has answered all of the agent's clarifying questions about a requested change, treat those answers as that explicit approval and implement it without asking again.
 - When the user asks a question, answer the question only. Do not make code changes unless explicitly asked.
 - For multi-step work, give a short plan with verification steps before editing.
 

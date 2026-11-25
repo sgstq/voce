@@ -182,6 +182,7 @@ enum InsertionMode: String, Codable, CaseIterable, Identifiable {
 enum TranscriptionBackend: String, Codable, CaseIterable, Identifiable {
     case openAIRealtime
     case deepgram
+    case elevenLabs
     case openRouter
     case appleOnDevice
 
@@ -193,6 +194,8 @@ enum TranscriptionBackend: String, Codable, CaseIterable, Identifiable {
             "OpenAI Realtime"
         case .deepgram:
             "Deepgram"
+        case .elevenLabs:
+            "ElevenLabs"
         case .openRouter:
             "OpenRouter"
         case .appleOnDevice:
@@ -207,6 +210,8 @@ enum TranscriptionBackend: String, Codable, CaseIterable, Identifiable {
             "OpenAI"
         case .deepgram:
             "Deepgram"
+        case .elevenLabs:
+            "ElevenLabs"
         case .openRouter:
             "OpenRouter"
         case .appleOnDevice:
@@ -222,6 +227,8 @@ enum TranscriptionBackend: String, Codable, CaseIterable, Identifiable {
             "openai-api-key"
         case .deepgram:
             "deepgram-api-key"
+        case .elevenLabs:
+            "elevenlabs-api-key"
         case .openRouter:
             "openrouter-api-key"
         case .appleOnDevice:

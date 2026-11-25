@@ -9,7 +9,8 @@ enum RealtimeProtocol {
     static func sessionUpdateJSON(
         model: String,
         language: String,
-        delay: RealtimeDelay
+        delay: RealtimeDelay,
+        keywords: [String] = []
     ) throws -> String {
         var transcription: [String: Any] = [
             "model": model,
@@ -17,7 +18,16 @@ enum RealtimeProtocol {
         ]
         let trimmedLanguage = language.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedLanguage.isEmpty, trimmedLanguage.lowercased() != "auto" {
-            transcription["language"] = trimmedLanguage
+            // gpt-live-transcribe takes a `languages` list and rejects the
+            // singular field.
+            if model.lowercased().hasPrefix("gpt-live-transcribe") {
+                transcription["languages"] = [trimmedLanguage]
+            } else {
+                transcription["language"] = trimmedLanguage
+            }
+        }
+        if !keywords.isEmpty {
+            transcription["keywords"] = keywords
         }
 
         let payload: [String: Any] = [

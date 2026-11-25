@@ -14,9 +14,14 @@ enum DeepgramProtocol {
     /// Deepgram reads all session config from the URL — there is no
     /// `session.update` equivalent. Force-unwraps are safe by construction:
     /// `base` is a valid URL and `URLQueryItem` percent-encodes its values.
-    static func endpoint(model: String, language: String, base: URL = defaultEndpoint) -> URL {
+    static func endpoint(
+        model: String,
+        language: String,
+        keyterms: [String] = [],
+        base: URL = defaultEndpoint
+    ) -> URL {
         var components = URLComponents(url: base, resolvingAgainstBaseURL: false)!
-        components.queryItems = [
+        var items = [
             URLQueryItem(name: "model", value: model),
             URLQueryItem(name: "encoding", value: "linear16"),
             URLQueryItem(name: "sample_rate", value: String(sampleRate)),
@@ -25,6 +30,10 @@ enum DeepgramProtocol {
             URLQueryItem(name: "smart_format", value: "true"),
             URLQueryItem(name: "language", value: mappedLanguage(language)),
         ]
+        // Repeated, one item per term: a comma-joined value is silently
+        // treated as a single literal term.
+        items += keyterms.map { URLQueryItem(name: "keyterm", value: $0) }
+        components.queryItems = items
         return components.url!
     }
 

@@ -33,6 +33,22 @@ final class RealtimeProtocolTests: XCTestCase {
         XCTAssertTrue(input["turn_detection"] is NSNull)
     }
 
+    func testLiveTranscribeGetsKeywordsAndALanguageList() throws {
+        let json = try RealtimeProtocol.sessionUpdateJSON(
+            model: "gpt-live-transcribe",
+            language: "es",
+            delay: .low,
+            keywords: ["Voce", "Oviedo"]
+        )
+        let event = try decode(json)
+        let transcription = try XCTUnwrap(
+            (((event["session"] as? [String: Any])?["audio"] as? [String: Any])?["input"] as? [String: Any])?["transcription"] as? [String: Any]
+        )
+        XCTAssertEqual(transcription["keywords"] as? [String], ["Voce", "Oviedo"])
+        XCTAssertEqual(transcription["languages"] as? [String], ["es"])
+        XCTAssertNil(transcription["language"])
+    }
+
     func testSessionUpdateOmitsAutoLanguage() throws {
         let json = try RealtimeProtocol.sessionUpdateJSON(
             model: "gpt-realtime-whisper",

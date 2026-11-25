@@ -27,6 +27,7 @@ Local speech fallback (prefer macOS 26 `SpeechAnalyzer` / `SpeechTranscriber`; u
 
 ## Roadmap (not built)
 - **Voce service** — the next big release. Users who want it dictate through Voce's own backend: no accounts with speech or AI providers and no API keys to paste. Bring-your-own-keys stays as an option for everyone else.
+  - Looked at 2026-11-25 for ways to skip API keys without a backend; none fit. Anthropic's identity federation issues short-lived tokens only to workloads a cloud or CI identity provider vouches for (GCP, AWS, Azure, GitHub Actions), not to a desktop app on a personal Mac. Signing in with a Claude account in a third-party app appears not to be offered (unverified), and reusing Claude Code's subscription login would break Anthropic's terms. Apple on-device transcription and Polish already need no key, but are weaker and need Apple Intelligence.
 - **Profiles per app** — optionally tie a profile to apps, so dictating into a given app picks its profile automatically. Profiles already carry stable ids for this.
 - **Profiles behind a paywall (probably)** — profiles are unlimited for now; a later release will likely make them part of a paid plan.
 

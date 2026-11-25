@@ -175,12 +175,16 @@ private struct TranscriptionSections: View {
                 }
             case .deepgram:
                 TextField("Model", text: appState.binding(profile: profile.id, \.deepgramModel))
+            case .elevenLabs:
+                TextField("Model", text: appState.binding(profile: profile.id, \.elevenLabsModel))
             case .openRouter:
                 TextField("Model", text: appState.binding(profile: profile.id, \.openRouterModel))
             case .appleOnDevice:
                 LabeledContent("Model", value: "Apple SpeechAnalyzer")
             }
         }
+
+        TranscriptionOptionsSection(appState: appState, profile: profile)
     }
 
     @ViewBuilder
@@ -259,7 +263,19 @@ private struct PolishSection: View {
     private var providerDetail: some View {
         let provider = profile.refinementProvider
         if provider.isCloud {
-            TextField("Model", text: appState.binding(profile: profile.id, \.refinementModel))
+            if provider.suggestedModels.isEmpty {
+                TextField("Model", text: appState.binding(profile: profile.id, \.refinementModel))
+            } else {
+                Picker("Model", selection: modelChoice) {
+                    ForEach(provider.suggestedModels, id: \.id) { model in
+                        Text(model.label).tag(model.id)
+                    }
+                    Text("Other…").tag("")
+                }
+                if !provider.suggestedModels.contains(where: { $0.id == profile.refinementModel }) {
+                    TextField("Model ID", text: appState.binding(profile: profile.id, \.refinementModel))
+                }
+            }
             if provider == .openAI, profile.transcriptionBackend == .openAIRealtime {
                 LabeledContent("API key", value: "Shared with Transcription")
             } else if let account = provider.keychainAccount {
@@ -273,6 +289,16 @@ private struct PolishSection: View {
         } else {
             LabeledContent("On-device model", value: AppleRefiner.availabilityDescription())
         }
+    }
+
+    /// A suggested model, or "" for any other model id, which the field
+    /// under the picker edits.
+    private var modelChoice: Binding<String> {
+        let suggested = profile.refinementProvider.suggestedModels.map(\.id)
+        return Binding(
+            get: { suggested.contains(profile.refinementModel) ? profile.refinementModel : "" },
+            set: { choice in appState.updateProfile(profile.id) { $0.refinementModel = choice } }
+        )
     }
 
     /// Switching provider also swaps the model field to the new provider's
